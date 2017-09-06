@@ -1,0 +1,15 @@
+dice<-table(1:6);dice
+rbind(dice,c(15,16,16,15,15,14)
+View(VADeaths)
+VADeaths<-VADeaths
+str(VADeaths)
+dice<-matrix(nrow=2,ncol=6)
+dice[1,]<-c(18,25,14,22,26,15)
+dice[2,]<-c(0.15,0.21,0.12,0.18,0.22,0.12)
+dice
+dimnames(dice)=list("도수","상대도수","1","2","3","4","5","6")
+row.names(dice)<-c("도수","상대도수")
+dimnames(dice)
+dimnames(dice[[2]])<-c('1','2','3','4','5','6')
+colnames(dice)<-c(1:6)
+dice

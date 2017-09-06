@@ -1,0 +1,151 @@
+---
+title: "Lab_1"
+author: "Kim Youngrae"
+date: '2017 8 8 '
+output: html_document
+---
+
+# Content
+* Introduction to R
+* Linear Regression
+* Exercises
+
+***
+
+# Introduction to R
+
+* ls() : list of all of the objects.
+```{r}
+x=c(1,6,2); y=c(1,4,3);
+ls()
+```
+
+* rm() : delete object.
+```{r}
+rm(x)
+ls()
+```
+
+* ?funcname : help
+```{r}
+?rm
+```
+
+* set.seed() : Set seed to allow us to reproduce the same set of random numbers.
+```{r}
+rnorm(10)
+rnorm(10)
+set.seed(1)
+rnorm(10)
+set.seed(1)
+rnorm(10)
+```
+
+* library() : load the package
+```{r}
+library(MASS)
+```
+
+* read.table() : import data ( read.csv, ...)
+```{r,eval=FALSE}
+read.table("\경로와 파일 이름",header=TRUE)
+```
+
+* ggplot : package for graphics
+```{r}
+library(ggplot2)
+```
+
+***
+
+# Linear Regression
+
+* lm() : linear model, for regression
+
+```{r}
+library(MASS)
+library(ISLR)
+```
+
+```{r}
+lm.fit<-lm(medv~lstat,data=Boston)
+summary(lm.fit)
+confint(lm.fit)
+predict(lm.fit)
+predict(lm.fit,interval='prediction')
+```
+
+```{r}
+attach(Boston)
+plot(lstat,medv)
+abline(lm.fit,col="red",lwd="2")
+```
+
+```{r}
+lm.fit<-lm(medv~lstat+age,data=Boston)
+summary(lm.fit)
+confint(lm.fit)
+predict(lm.fit)
+```
+
+```{r}
+lm.fit<-lm(medv~.,data=Boston)
+summary(lm.fit)
+lm.fit<-lm(medv~.+0,data=Boston)
+summary(lm.fit)
+lm.fit<-lm(medv~lstat*age,data=Boston)
+summary(lm.fit)
+```
+
+***
+
+# Exercises
+
+10. This exercise involves the Boston housing data set.
+(a) To begin, load in the Boston data set. The Boston data set is
+part of the MASS library in R. 
+
+```{r,eval=FALSE}
+library(MASS)
+```
+
+Now the data set is contained in the object Boston. 
+
+```{r,eval=FALSE}
+Boston
+```
+
+Read about the data set:
+Boston
+
+How many rows are in this data set? How many columns? What do the rows and columns represent?
+
+(b) Make some pairwise scatterplots of the predictors (columns) in this data set. Describe your findings.
+
+(c) Are any of the predictors associated with per capita crime rate? If so, explain the relationship.
+
+(d) Do any of the suburbs of Boston appear to have particularly high crime rates? Tax rates? Pupil-teacher ratios? Comment on the range of each predictor.
+
+(e) How many of the suburbs in this data set bound the Charles river?
+   
+(f) What is the median pupil-teacher ratio among the towns in this data set?
+
+(g) Which suburb of Boston has lowest median value of owner- occupied homes? What are the values of the other predictors for that suburb, and how do those values compare to the overall ranges for those predictors? Comment on your findings.
+
+(h) In this data set, how many of the suburbs average more than seven rooms per dwelling? More than eight rooms per dwelling? Comment on the suburbs that average more than eight rooms per dwelling.
+
+
+***
+
+9. This question involves the use of multiple linear regression on the Auto data set.
+(a) Produce a scatterplot matrix which includes all of the variables in the data set.
+(b) Compute the matrix of correlations between the variables using the function cor(). You will need to exclude the name variable, which is qualitative.
+(c) Use the lm() function to perform a multiple linear regression with mpg as the response and all other variables except name as the predictors. Use the summary() function to print the results. Comment on the output. For instance:
+i. Is there a relationship between the predictors and the re- sponse?
+ii. Which predictors appear to have a statistically significant relationship to the response?
+iii. What does the coefficient for the year variable suggest?
+(d) Use the plot() function to produce diagnostic plots of the linear regression fit. Comment on any problems you see with the fit. Do the residual plots suggest any unusually large outliers? Does the leverage plot identify any observations with unusually high leverage?
+(e) Use the * and : symbols to fit linear regression models with interaction effects. Do any interactions appear to be statistically significant?
+(f) Try a few different transformations of the variables, such as log(X), √X, X2. Comment on your findings.
+
+

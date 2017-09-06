@@ -1,0 +1,21 @@
+{
+    "collab_server" : "",
+    "contents" : "# define a funtion\na.fun = function(x)\n{\n  v = solve(x)\n  return (v + 1 )\n}\nv.vec = sample(c(0,1), 100, replace = T)\nresult = list()\nfor ( i in 1:length(v.vec))\n  {\n  #try function\n  a = try(a.fun(v.vec[i]), silent = T)\n  # check the return of try\n  if (class(a)=='try-error')\n  {\n    result[[i]] = NA\n  } else {\n    result[[i]] = a\n  }",
+    "created" : 1502538154736.000,
+    "dirty" : true,
+    "encoding" : "",
+    "folds" : "",
+    "hash" : "935442946",
+    "id" : "A6475FB6",
+    "lastKnownWriteTime" : 3419473789575321445,
+    "last_content_update" : 1502538283430,
+    "path" : null,
+    "project_path" : null,
+    "properties" : {
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}
