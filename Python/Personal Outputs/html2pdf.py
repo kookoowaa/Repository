@@ -8,9 +8,9 @@ Vertical_option = {
     'orientation': 'Landscape'}
 # options @ https://wkhtmltopdf.org/usage/wkhtmltopdf.txt
 
-base_url = "http://ranking.uos.ac.kr/material/bigdata/week_2/Color.html#"
+base_url = "http://ranking.uos.ac.kr/material/bigdata/week_4/web_scraping.html#"
 url_list= []
-for i in range(1,25):
+for i in range(1,33):
     url_list.append(base_url+str(i))
 
-pdfkit.from_url(url_list, "d:/R color.pdf", configuration=config, options = Vertical_option)
+pdfkit.from_url(url_list, "d:/Web Scraping.pdf", configuration=config, options = Vertical_option)
