@@ -1,0 +1,21 @@
+```{R}
+library(rvest)
+Sys.setlocale('LC_ALL', 'Korean')
+
+```
+```{R}
+
+url_car = "http://www.bobaedream.co.kr/mycar/mycar_list.php?gubun=I&page=1"
+html_car = read_html(url_car, encoding = 'UTF-8')
+html_car
+```
+
+
+
+```{R}
+car_table = html_car %>% html_nodes('table.mycarlist') %>% html_table(header = F, fill = T) %>% data.frame()
+for (i in 1:ncol(car_table)){
+  car_table[,i] = rvest::repair_encoding(car_table[,i])
+}
+car_table
+```

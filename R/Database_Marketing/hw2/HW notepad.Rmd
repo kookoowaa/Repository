@@ -1,0 +1,97 @@
+```{R}
+library(xlsx)
+library(rgl)
+library(dplyr)
+
+```
+
+```{R}
+mailorder = read.xlsx2('d:/github/r/database_marketing/hw2/mailorder.xls', 1)
+
+
+## Factor > numericd
+mailorder$id = as.numeric(as.character(mailorder$id))
+mailorder$monetary = as.numeric(as.character(mailorder$monetary))
+mailorder$recency = as.numeric(as.character(mailorder$recency))
+mailorder$frequency = as.numeric(as.character(mailorder$frequency))
+mailorder$duration = as.numeric(as.character(mailorder$duration))
+mailorder$purchase = as.numeric(as.character(mailorder$purchase))
+FreqM = mailorder$frequency/mailorder$duration
+mailorder = cbind(mailorder,FreqM)
+
+test_group = mailorder[1:2000,]
+valid_group = mailorder[2001:4000,]
+```
+
+```{R}
+### 탐색적 자료분ㅅ
+attach(valid_group)
+mail_color = rep('red',2000)
+mail_color[purchase ==0] = 'yellow'
+plot3d(frequency, recency, FreqM, col = mail_color, pch= 20)
+### 구매 빈도가 높던 사람이 최근에도 구매를 했으면 로열티가 있고, 우편에 응답할 확률도 높음
+### monetary 영향 없음, recency 영향 높음
+```
+
+
+```{R}
+## 1번 - 500명중에 hit-rate 8.4%
+idx = sample(1:2000, size = 500)
+mail_sample = mailorder[idx,]
+cat('500명 중 구매한 인원 수')
+dim(mail_sample[mail_sample$purchase==1,])[1]
+cat('맞춘 확률')
+dim(mail_sample[mail_sample$purchase==1,])[1]/500
+```
+
+```{R}
+## 4번 - 16%
+simple_lm = lm(purchase~recency+frequency+monetary, data= test_group)
+summary(simple_lm)
+lm_valid = predict(simple_lm, newdata = valid_group, type = "response")
+summary(sort(lm_valid)[1501:2000])
+valid_result = rep(1,2000)
+valid_result[lm_valid<0.1081] = 0
+table(valid_result)
+
+a = table(valid_result, valid_group$purchase)
+a[2,2]/sum(a[2,])
+a
+
+########################### prob
+
+
+```
+
+
+```{R}
+
+## Tree model assumption - 14.8%
+tree_test = valid_group[valid_group$recency<16 & valid_group$frequency>2,]
+tree_result = rep(0,2000)
+tree_result[valid_group$recency<16 & valid_group$frequency>2] = 1
+dim(tree_test)
+tree_purchase = tree_test[tree_test$purchase == 1,]
+dim(tree_purchase)
+cat('맞춘 확률', dim(tree_purchase)[1]/dim(tree_test)[1])
+
+a = table(tree_result, valid_group$purchase)
+a[2,2]/sum(a[2,])
+```
+
+```{R}
+## 
+simple_lm = lm(purchase~recency+FreqM, data= test_group)
+summary(simple_lm)
+lm_valid = predict(simple_lm, newdata = valid_group, type = "response")
+summary(sort(lm_valid)[1501:2000])
+valid_result = rep(1,2000)
+valid_result[sort(lm_valid)<0.1082] = 0
+
+a = table(valid_result, valid_group$purchase)
+a[2,2]/sum(a[2,])
+a
+########################### prob
+
+
+```
