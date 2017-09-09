@@ -2,6 +2,7 @@
 library(xlsx)
 library(rgl)
 library(dplyr)
+Sys.setlocale(,'English')
 
 ```
 
@@ -11,24 +12,29 @@ mailorder = read.xlsx2('d:/github/r/database_marketing/hw2/mailorder.xls', 1)
 
 ## Factor > numericd
 mailorder$id = as.numeric(as.character(mailorder$id))
-mailorder$monetary = as.numeric(as.character(mailorder$monetary))
-mailorder$recency = as.numeric(as.character(mailorder$recency))
-mailorder$frequency = as.numeric(as.character(mailorder$frequency))
-mailorder$duration = as.numeric(as.character(mailorder$duration))
-mailorder$purchase = as.numeric(as.character(mailorder$purchase))
-FreqM = mailorder$frequency/mailorder$duration
-mailorder = cbind(mailorder,FreqM)
+mailorder$monetary = as.numeric(as.character(mailorder$monetary)) #총 지출액
+mailorder$recency = as.numeric(as.character(mailorder$recency)) #최근 구매
+mailorder$frequency = as.numeric(as.character(mailorder$frequency)) #총 구매 건수
+mailorder$duration = as.numeric(as.character(mailorder$duration)) #첫 구매
+mailorder$purchase = as.numeric(as.character(mailorder$purchase)) #메일구매여부
+order_month = mailorder$frequency / mailorder$duration #월 주문 횟수
+mon_month = mailorder$monetary / mailorder$duration #월 주문액
+order_freq = mailorder$monetary / mailorder$frequency #1회 구매액
+mailorder = cbind(mailorder,mon_month, order_month, order_freq)
+
 
 test_group = mailorder[1:2000,]
 valid_group = mailorder[2001:4000,]
+
+summary(mailorder)
 ```
 
 ```{R}
 ### 탐색적 자료분ㅅ
 attach(valid_group)
 mail_color = rep('red',2000)
-mail_color[purchase ==0] = 'yellow'
-plot3d(frequency, recency, FreqM, col = mail_color, pch= 20)
+mail_color[purchase ==0] = 'green'
+plot3d(life_value, recency, frequency, col = mail_color, pch= 19)
 ### 구매 빈도가 높던 사람이 최근에도 구매를 했으면 로열티가 있고, 우편에 응답할 확률도 높음
 ### monetary 영향 없음, recency 영향 높음
 ```
@@ -80,18 +86,44 @@ a[2,2]/sum(a[2,])
 ```
 
 ```{R}
-## 
-simple_lm = lm(purchase~recency+FreqM, data= test_group)
+## 18.4%
+simple_lm = lm(purchase~gender + recency + frequency + mon_month + order_month, data= test_group)
 summary(simple_lm)
 lm_valid = predict(simple_lm, newdata = valid_group, type = "response")
-summary(sort(lm_valid)[1501:2000])
+sum_lm = summary(sort(lm_valid)[1501:2000])
+
+
 valid_result = rep(1,2000)
-valid_result[sort(lm_valid)<0.1082] = 0
+valid_result[lm_valid<(sum_lm[1])] = 0
 
 a = table(valid_result, valid_group$purchase)
-a[2,2]/sum(a[2,])
 a
+cat('맞춘확률')
+a[2,2]/sum(a[2,])
+
 ########################### prob
 
+```
 
+
+```{R}
+##19%
+testorder = mailorder
+adj_freq = sqrt(testorder$frequency)
+testorder = cbind(testorder,adj_freq)
+ttsetorder = testorder[1:2000,]
+tval = testorder[2001:4000,]
+test_lm = lm(purchase~gender + recency + adj_freq + mon_month + order_month, data= ttsetorder)
+
+test_valid = predict(test_lm, newdata = tval, type = "response")
+test_sum = summary(sort(test_valid)[1501:2000])
+
+
+test_valid_result = rep(1,2000)
+test_valid_result[test_valid<(test_sum[1])] = 0
+
+b = table(test_valid_result, valid_group$purchase)
+b
+cat('맞춘확률')
+b[2,2]/sum(b[2,])
 ```
