@@ -76,18 +76,14 @@ a
 tree_test = valid_group[valid_group$recency<16 & valid_group$frequency>2,]
 tree_result = rep(0,2000)
 tree_result[valid_group$recency<16 & valid_group$frequency>2] = 1
-dim(tree_test)
 tree_purchase = tree_test[tree_test$purchase == 1,]
-dim(tree_purchase)
 cat('맞춘 확률', dim(tree_purchase)[1]/dim(tree_test)[1])
 
-a = table(tree_result, valid_group$purchase)
-a[2,2]/sum(a[2,])
 ```
 
 ```{R}
 ## 18.4%
-simple_lm = lm(purchase~gender + recency + frequency + mon_month + order_month, data= test_group)
+simple_lm = lm(purchase~gender + recency + frequency + mon_month + order_month + order_freq, data= test_group)
 summary(simple_lm)
 lm_valid = predict(simple_lm, newdata = valid_group, type = "response")
 sum_lm = summary(sort(lm_valid)[1501:2000])
@@ -113,7 +109,7 @@ adj_freq = sqrt(testorder$frequency)
 testorder = cbind(testorder,adj_freq)
 ttsetorder = testorder[1:2000,]
 tval = testorder[2001:4000,]
-test_lm = lm(purchase~gender + recency + adj_freq + mon_month + order_month, data= ttsetorder)
+test_lm = lm(purchase~gender + recency + adj_freq + mon_month + order_month , data= ttsetorder)
 
 test_valid = predict(test_lm, newdata = tval, type = "response")
 test_sum = summary(sort(test_valid)[1501:2000])
@@ -126,4 +122,16 @@ b = table(test_valid_result, valid_group$purchase)
 b
 cat('맞춘확률')
 b[2,2]/sum(b[2,])
+```
+
+```{R}
+z = lm(purchase~.-id, data = ttsetorder)
+step(z)
+```
+
+```{R}
+testorder$order_month = testorder$adj_freq / testorder$duration
+testorder$order_freq = testorder$monetary /testorder$adj_freq
+
+
 ```

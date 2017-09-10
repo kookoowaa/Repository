@@ -1,0 +1,144 @@
+```{R}
+library(xlsx)
+library(rgl)
+library(dplyr)
+Sys.setlocale(,'English')
+
+```
+
+```{R}
+mailorder = read.xlsx2('d:/github/r/database_marketing/hw2/mailorder.xls', 1)
+
+
+## Factor > numericd
+mailorder$id = as.numeric(as.character(mailorder$id))
+mailorder$monetary = as.numeric(as.character(mailorder$monetary)) #총 지출액
+mailorder$recency = as.numeric(as.character(mailorder$recency)) #최근 구매
+mailorder$frequency = as.numeric(as.character(mailorder$frequency)) #총 구매 건수
+mailorder$duration = as.numeric(as.character(mailorder$duration)) #첫 구매
+mailorder$purchase = as.numeric(as.character(mailorder$purchase)) #메일구매여부
+transaction_month = mailorder$frequency / mailorder$duration #월 주문 횟수
+spending_month = mailorder$monetary / mailorder$duration #월 주문액
+spending_transaction = mailorder$monetary / mailorder$frequency #1회 구매액
+mailorder = cbind(mailorder,spending_month, transaction_month, spending_transaction)
+
+
+test_group1 = mailorder[1:2000,]
+valid_group1 = mailorder[2001:4000,]
+
+summary(mailorder)
+```
+
+
+```{R}
+### 탐색적 자료분석
+attach(valid_group1)
+mail_color = rep('red',2000)
+mail_color[purchase ==0] = 'green'
+plot3d(life_value, recency, frequency, col = mail_color, pch= 19)
+### 구매 빈도가 높던 사람이 최근에도 구매를 했으면 로열티가 있고, 우편에 응답할 확률도 높음
+### monetary 영향 없음, recency 영향 높음
+```
+
+```{R}
+## 1번 - 500명중에 hit-rate 8.4%
+idx = sample(1:2000, size = 500)
+mail_sample = mailorder[idx,]
+cat('500명 중 구매한 인원 수')
+dim(mail_sample[mail_sample$purchase==1,])[1]
+cat('맞춘 확률')
+dim(mail_sample[mail_sample$purchase==1,])[1]/500
+```
+
+```{R}
+## 4번 - 16%
+simple_lm = lm(purchase~recency+frequency+monetary, data= test_group1)
+#summary(simple_lm)
+lm_valid = predict(simple_lm, newdata = valid_group1, type = "response")
+#summary(sort(lm_valid)[1501:2000])
+valid_result = rep(1,2000)
+valid_result[lm_valid<0.1081] = 0
+
+a = table(valid_result, valid_group1$purchase)
+a[2,2]/sum(a[2,])
+
+
+```
+```{R}
+
+## Tree model assumption - 14.8%
+tree_test = valid_group1[valid_group1$recency<16 & valid_group1$frequency>2,]
+tree_result = rep(0,2000)
+tree_result[valid_group1$recency<16 & valid_group1$frequency>2] = 1
+tree_purchase = tree_test[tree_test$purchase == 1,]
+cat('맞춘 확률', dim(tree_purchase)[1]/dim(tree_test)[1])
+
+```
+
+
+#본격 실험 
+
+```{r}
+# 1차 실험 (9개 변수) (17.6%)
+test1 = step(lm(purchase~.-id, data = test_group1))
+valid1 = predict(test1, newdata = valid_group1, type = "response")
+valid1_sum = summary(sort(valid1)[1501:2000])
+test1_result = rep(1,2000)
+test1_result[valid1<valid1_sum[1]] = 0
+
+a = table(test1_result, valid_group1$purchase)
+cat('\n맞출 확률 = ')
+cat(a[2,2]/sum(a[2,]))
+```
+
+```{r}
+# 2차실험 (18.4%)
+test2 = lm(purchase~ gender + recency + frequency + spending_month + transaction_month, data = test_group1)
+valid2 = predict(test2, newdata = valid_group1, type = "response")
+valid2_sum = summary(sort(valid2)[1501:2000])
+test2_result = rep(1,2000)
+test2_result[valid2<valid2_sum[1]] = 0
+
+a = table(test2_result, valid_group1$purchase)
+cat('\n맞출 확률 = ')
+cat(a[2,2]/sum(a[2,]))
+```
+
+```{r}
+# Frequency 조정, 원본 데이터 수정
+Neworder = mailorder
+adj_freq = sqrt(Neworder$frequency)
+Neworder = cbind(Neworder,adj_freq)
+summary(Neworder)
+
+test_group2 = Neworder[1:2000,]
+valid_group2 = Neworder[2001:4000,]
+
+```
+
+```{r}
+# 3차 실험(18.2%)
+test3 = step(lm(purchase~.-id, data = test_group2))
+valid3 = predict(test3, newdata = valid_group2, type = "response")
+valid3_sum = summary(sort(valid3)[1501:2000])
+test3_result = rep(1,2000)
+test3_result[valid3<valid3_sum[1]] = 0
+
+a = table(test3_result, valid_group2$purchase)
+cat('\n맞출 확률 = ')
+cat(a[2,2]/sum(a[2,]))
+```
+
+```{r}
+# 4차 실험(19.0%)
+test4 = lm(purchase~gender + recency + transaction_month + spending_month + 
+                  adj_freq, data = test_group2)
+valid4 = predict(test4, newdata = valid_group2, type = "response")
+valid4_sum = summary(sort(valid4)[1501:2000])
+test4_result = rep(1,2000)
+test4_result[valid4<valid4_sum[1]] = 0
+
+a = table(test4_result, valid_group2$purchase)
+cat('\n맞출 확률 = ')
+cat(a[2,2]/sum(a[2,]))
+```
