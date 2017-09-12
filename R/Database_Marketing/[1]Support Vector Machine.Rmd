@@ -1,0 +1,26 @@
+```{r}
+set.seed(3)
+x = matrix(rnorm(20*2), ncol = 2)
+y = c(rep(-1,10),rep(1,10))
+x[y==1,] = x[y==1,] + 1
+
+plot(x, col=(3-y))
+```
+
+```{r}
+dat = data.frame(x=x, y= as.factor(y))
+
+```
+
+```{r}
+library(e1071)
+svmfit = svm(y~., data = dat, kernel = 'linear', cost = 0.1, scale =  F)
+plot(svmfit, dat)
+summary(svmfit)
+```
+
+```{r}
+tune.out = tune(svm, y~., data = dat, ranges = list(cost =c(0.01, 0.1, 1, 10)))
+### cont'
+```
+

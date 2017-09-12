@@ -1,0 +1,91 @@
+```{R}
+rm(list=ls())
+library(xlsx)
+library(rgl)
+library(dplyr)
+Sys.setlocale(,'Korean')
+
+```
+
+```{R}
+mailorder = read.xlsx2('d:/github/r/database_marketing/hw2/mailorder.xls', 1)
+
+
+## Factor > numericd
+
+mailorder$monetary = as.numeric(as.character(mailorder$monetary)) #총 지출액
+mailorder$recency = as.numeric(as.character(mailorder$recency)) #최근 구매
+mailorder$transaction = as.numeric(as.character(mailorder$frequency)) #총 구매 건수
+mailorder$duration = as.numeric(as.character(mailorder$duration)) #첫 구매
+mailorder$purchase = as.numeric(as.character(mailorder$purchase)) #메일구매여부
+
+mailorder = mailorder[,-5]
+
+transaction_month = mailorder$transaction / mailorder$duration #월 주문 횟수
+#spending_month = mailorder$monetary / mailorder$duration #월 주문액
+#spending_transaction = mailorder$monetary / mailorder$transaction #1회 구매액
+mailorder = cbind(mailorder,transaction_month)
+#mailorder = cbind(mailorder,spending_month, transaction_month, spending_transaction)
+
+test_group1 = mailorder[1:2000,]
+valid_group1 = mailorder[2001:4000,]
+
+summary(mailorder)
+```
+
+```{r}
+#test1 = step(lm(purchase~.-id, data = test_group1))
+test1 = lm(purchase~gender+recency+transaction+transaction_month, data = test_group1)
+valid1 = predict(test1, newdata = valid_group1, type = "response")
+valid1_sum = summary(sort(valid1)[1501:2000])
+test1_result = rep(1,2000)
+test1_result[valid1<valid1_sum[1]] = 0
+#summary(test1) anova(test1)
+
+a = table(test1_result, valid_group1$purchase)
+cat('\n맞출 확률 = ')
+cat(a[2,2]/sum(a[2,]))
+```
+
+```{r}
+neworder = mailorder
+neworder$duration = sqrt(neworder$duration)
+neworder$transaction = sqrt(neworder$transaction)
+#neworder$spending_month = neworder$monetary / neworder$duration
+neworder$transaction_month = neworder$transaction / neworder$duration
+neworder$spending_transaction = neworder$monetary / neworder$transaction
+
+
+test_group2 = neworder[1:2000,]
+valid_group2 = neworder[2001:4000,]
+```
+
+```{r}
+test2 = step(lm(purchase~.-id, data = test_group2))
+valid2 = predict(test2, newdata = valid_group2, type = "response")
+valid2_sum = summary(sort(valid2)[1501:2000])
+test2_result = rep(1,2000)
+test2_result[valid2<valid2_sum[1]] = 0
+#summary(test2)
+
+a = table(test2_result, valid_group2$purchase)
+cat('\n맞출 확률 = ')
+cat(a[2,2]/sum(a[2,]))
+```
+
+
+
+```{r}
+tree_valid = valid_group2[valid_group2$recency<16,]
+tree_result = predict(test2, newdata = tree_valid, type = 'response')
+tr_sorted = sort(tree_result)[(length(tree_result)-499):length(tree_result)]
+b = rep(1,length(tree_result))
+b[tree_result<summary(tr_sorted)[1]] = 0
+
+z = table(b, tree_valid$purchase)
+
+cat(z[2,2]/sum(z[2,]))
+
+
+```
+
