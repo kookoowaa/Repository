@@ -1,0 +1,199 @@
+```{R}
+rm(list=ls())
+library(xlsx)
+library(rgl)
+library(dplyr)
+library(glmnet)
+Sys.setlocale(,'English')
+```
+
+```{R}
+mailorder = read.xlsx2('d:/github/r/database_marketing/hw2/mailorder.xls', 1)
+
+
+## Factor > numericd
+
+mailorder$monetary = as.numeric(as.character(mailorder$monetary)) #총 지출액
+mailorder$recency = as.numeric(as.character(mailorder$recency)) #최근 구매
+mailorder$transaction = as.numeric(as.character(mailorder$frequency)) #총 구매 건수
+mailorder$duration = as.numeric(as.character(mailorder$duration)) #첫 구매
+mailorder$purchase = as.numeric(as.character(mailorder$purchase)) #메일구매여부
+
+mailorder = mailorder[,c(-1,-5)]
+
+test_group1 = mailorder[1:2000,]
+valid_group1 = mailorder[2001:4000,]
+
+summary(mailorder)
+```
+
+```{r}
+#test1 = step(lm(purchase~., data = test_group1))
+test1 = lm(purchase~gender+recency+transaction, data = test_group1)
+valid1 = predict(test1, newdata = valid_group1, type = "response")
+valid_group1[7] = valid1
+test1_result = arrange(valid_group1, desc(V7))
+
+summary(test1)
+cat(sum(test1_result$purchase[1:500])/500)
+```
+```{r}
+# Lasso
+x=model.matrix(purchase~.,data = test_group1)[,-1] # LASSO 적용을 위한 훈련셋의 x 매트릭스 생성
+x2=model.matrix(purchase~.,data = valid_group1[,1:6])[,-1] # 테스트셋 적용을 위한 테스트셋의 x 매트릭스 생성
+y=test_group1$purchase # LASSO 적용을 위한 훈련셋의 y 매트릭스 생성
+dim(x)
+grid=seq(0,0.036,length=5000) # 임의의 람다 값 설정(시행착오 통해 람다 값 범위 설정)
+lasso.mod=glmnet(x,y,alpha=1,lambda=grid, family = 'binomial') # LASSO 시행
+
+
+#plot(lasso.mod)
+set.seed(1) # 랜덤값 고정
+cv.out=cv.glmnet(x,y, family='binomial', type.measure='auc') # 교차검증 수행
+
+#plot(cv.out)
+bestlam=cv.out$lambda.min # 검정오차 가장 낮은 값(최적 람다) 출력 
+lasso.pred = predict(lasso.mod, s=bestlam, newx = x2, type='response') # 예측 셋 
+valid_group1[8] <- as.numeric(lasso.pred) # 예측 값 테스트셋에 추가
+test2_result = arrange(valid_group1, desc(V8))
+
+summary(test2_result)
+cat('\n맞출 확률: ',sum(test2_result$purchase[1:500])/500, '\n\n')
+
+lasso.fin = glmnet(x,y,alpha=1,lambda=bestlam, family = 'binomial') # 최적람다 투입한 라쏘모형
+lasso.fin$beta # 최적 람다기준 변수 확인
+```
+
+```{r}
+### 변수 추가
+order_01 = mailorder
+
+transaction_month = order_01$transaction / order_01$duration #월 주문 횟수
+spending_month = order_01$monetary / order_01$duration #월 주문액
+spending_transaction = order_01$monetary / order_01$transaction #1회 구매액
+#order_01 = cbind(order_01,transaction_month)
+order_01 = cbind(order_01,spending_month, transaction_month, spending_transaction)
+
+test_group2 = order_01[1:2000,]
+valid_group2 = order_01[2001:4000,]
+```
+
+```{r}
+#test2 = step(lm(purchase~., data = test_group2))
+test2 = lm(purchase~gender+recency+transaction+transaction_month, data = test_group2)
+valid2 = predict(test2, newdata = valid_group2, type = "response")
+valid_group2[10] = valid2
+test2_result = arrange(valid_group2, desc(V10))
+
+summary(test2)
+cat('\n맞출 확률: ', sum(test2_result$purchase[1:500])/500, '\n\n')
+```
+
+```{r}
+# Lasso
+x=model.matrix(purchase~.,data = test_group2)[,-1] # LASSO 적용을 위한 훈련셋의 x 매트릭스 생성
+x2=model.matrix(purchase~.,data = valid_group2[,1:9])[,-1] # 테스트셋 적용을 위한 테스트셋의 x 매트릭스 생성
+y=test_group2$purchase # LASSO 적용을 위한 훈련셋의 y 매트릭스 생성
+dim(x)
+grid=seq(0,0.036,length=5000) # 임의의 람다 값 설정(시행착오 통해 람다 값 범위 설정)
+lasso.mod=glmnet(x,y,alpha=1,lambda=grid, family = 'binomial') # LASSO 시행
+
+
+#plot(lasso.mod)
+set.seed(1) # 랜덤값 고정
+cv.out=cv.glmnet(x,y, family='binomial', type.measure='auc') # 교차검증 수행
+
+#plot(cv.out)
+bestlam=cv.out$lambda.min # 검정오차 가장 낮은 값(최적 람다) 출력 
+lasso.pred = predict(lasso.mod, s=bestlam, newx = x2, type='response') # 예측 셋 
+valid_group2[10] <- as.numeric(lasso.pred) # 예측 값 테스트셋에 추가
+test2_result = arrange(valid_group2, desc(V10))
+
+summary(test2_result)
+cat('\n맞출 확률: ',sum(test2_result$purchase[1:500])/500, '\n\n')
+
+lasso.fin = glmnet(x,y,alpha=1,lambda=bestlam, family = 'binomial') # 최적람다 투입한 라쏘모형
+lasso.fin$beta # 최적 람다기준 변수 확인
+```
+
+
+```{r}
+### 변수 추가
+order_02 = order_01
+
+order_02$transaction_month = order_01$transaction / sqrt(order_01$duration) #월 주문 횟수
+order_02$spending_month = order_01$monetary / sqrt(order_01$duration) #월 주문액
+
+test_group3 = order_02[1:2000,]
+valid_group3 = order_02[2001:4000,]
+```
+
+```{r}
+test3 = step(lm(purchase~., data = test_group3))
+#test3 = lm(purchase~gender+recency+transaction+transaction_month, data = test_group3)
+valid3 = predict(test2, newdata = valid_group3, type = "response")
+valid_group3[10] = valid3
+test3_result = arrange(valid_group3, desc(V10))
+
+summary(test3)
+cat('\n맞출 확률: ', sum(test3_result$purchase[1:500])/500, '\n\n')
+```
+
+```{r}
+# Lasso
+x=model.matrix(purchase~.,data = test_group3)[,-1] # LASSO 적용을 위한 훈련셋의 x 매트릭스 생성
+x2=model.matrix(purchase~.,data = valid_group3[,1:9])[,-1] # 테스트셋 적용을 위한 테스트셋의 x 매트릭스 생성
+y=test_group3$purchase # LASSO 적용을 위한 훈련셋의 y 매트릭스 생성
+dim(x)
+grid=seq(0,0.036,length=5000) # 임의의 람다 값 설정(시행착오 통해 람다 값 범위 설정)
+lasso.mod=glmnet(x,y,alpha=1,lambda=grid, family = 'binomial') # LASSO 시행
+
+
+#plot(lasso.mod)
+set.seed(1) # 랜덤값 고정
+cv.out=cv.glmnet(x,y, family='binomial', type.measure='auc') # 교차검증 수행
+
+#plot(cv.out)
+bestlam=cv.out$lambda.min # 검정오차 가장 낮은 값(최적 람다) 출력 
+lasso.pred = predict(lasso.mod, s=bestlam, newx = x2, type='response') # 예측 셋 
+valid_group3[10] <- as.numeric(lasso.pred) # 예측 값 테스트셋에 추가
+test3_result = arrange(valid_group3, desc(V10))
+
+summary(test3_result)
+cat('\n맞출 확률: ',sum(test3_result$purchase[1:500])/500, '\n\n')
+
+lasso.fin = glmnet(x,y,alpha=1,lambda=bestlam, family = 'binomial') # 최적람다 투입한 라쏘모형
+lasso.fin$beta # 최적 람다기준 변수 확인
+```
+
+
+
+```{r}
+neworder = mailorder
+neworder$duration = sqrt(neworder$duration)
+neworder$transaction = sqrt(neworder$transaction)
+#neworder$spending_month = neworder$monetary / neworder$duration
+neworder$transaction_month = neworder$transaction / neworder$duration
+neworder$spending_transaction = neworder$monetary / neworder$transaction
+
+
+test_group2 = neworder[1:2000,]
+valid_group2 = neworder[2001:4000,]
+```
+
+
+
+```{r}
+tree_valid = valid_group2[valid_group2$recency<16,]
+tree_result = predict(test2, newdata = tree_valid, type = 'response')
+tr_sorted = sort(tree_result)[(length(tree_result)-499):length(tree_result)]
+b = rep(1,length(tree_result))
+b[tree_result<summary(tr_sorted)[1]] = 0
+
+z = table(b, tree_valid$purchase)
+
+cat(z[2,2]/sum(z[2,]))
+
+
+```
+

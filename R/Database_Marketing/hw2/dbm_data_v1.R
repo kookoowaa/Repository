@@ -1,0 +1,205 @@
+#####기본 설정#####
+library(dplyr)
+library(glmnet)
+rdata=read.csv('mailorder.csv')
+str(rdata)
+
+rdata[ ,2] <- as.numeric(rdata[,2]) # gender값 숫자로 변경
+rdata[ ,2] <- rdata[,2]-1 # gender값에 -1 (1이 남성, 0이 여성)
+rdata[ ,2] <- as.factor(rdata[,2]) # gender 값 factor로 변경 (차이는 없엉)
+
+t.set <- rdata[1:2000,] # 훈련셋 1~2000
+t.set2 <- rdata[1:2000, 2:7] # ID 제거
+v.set <- rdata[2001:4000,] # 테스트셋 2001~4000
+v.set2 <- rdata[2001:4000, 2:7] # ID 제거
+
+########변수 추가용 코드2###################
+
+t.transaction_month = t.set2$frequency / t.set2$duration #훈련셋-월 주문 횟수
+t.spending_month = t.set2$monetary / t.set2$duration #훈련셋-월 주문액
+t.spending_transaction = t.set2$monetary / t.set2$frequency #훈련셋-1회 구매액
+
+v.transaction_month = v.set2$frequency / v.set2$duration #테스트셋-월 주문 횟수
+v.spending_month = v.set2$monetary / v.set2$duration #테스트셋-월 주문액
+v.spending_transaction = v.set2$monetary / v.set2$frequency #테스트셋-1회 구매액
+
+t.set3 = cbind(t.set2 ,t.transaction_month, t.spending_month, t.spending_transaction) # 훈련셋에 생성한 변수 추가
+v.set3 = cbind(v.set2 ,v.transaction_month, v.spending_month, v.spending_transaction) # 테스트셋에 생성한 변수 추가
+
+###########변수 수정용 코드3 : Duration 및 frequency 값 루트 씌운 후 각 해당 변수를 나누어 변수 생성##################
+
+t.transaction_month = sqrt(t.set2$frequency / t.set2$duration) #훈련셋-월 주문 횟수 
+t.spending_month = sqrt(t.set2$monetary / t.set2$duration) #훈련셋-월 주문액
+t.spending_transaction = sqrt(t.set2$monetary / t.set2$frequency) #훈련셋-1회 구매액
+
+v.transaction_month = sqrt(v.set2$frequency / v.set2$duration) #테스트셋-월 주문 횟수
+v.spending_month = sqrt(v.set2$monetary / v.set2$duration) #테스트셋-월 주문액
+v.spending_transaction = sqrt(v.set2$monetary / v.set2$frequency) #테스트셋-1회 구매액
+
+t.set3 = cbind(t.set2 ,t.transaction_month, t.spending_month, t.spending_transaction) # 훈련셋에 생성한 변수 추가
+v.set3 = cbind(v.set2 ,v.transaction_month, v.spending_month, v.spending_transaction) # 테스트셋에 생성한 변수 추가
+
+
+
+
+
+#######################모형선-택#####################################
+
+
+##############기본 변수 단순 선형 1-1############
+fit.data=lm(purchase~., data=t.set2) # 모든 변수 투입
+fit.data2=lm(purchase~1, data=t.set2) # 절편값만 생성(전진선택용)
+step(fit.data, direction = 'backward') # 후진
+step(fit.data2, direction = 'forward', scope = list(lower=fit.data2, upper=fit.data)) # 전진
+step(fit.data, direction = 'both', scope=list(upper=fit.data)) # 둘다
+
+fit.final=lm(purchase~recency+frequency+gender, data=t.set2) # 선택 변수 동일하여 해당과 같이 회귀식 작성
+summary(fit.final)
+pred.data=predict(fit.final, newdata = v.set2, type="response") # test 데이터 기준 예측데이터 생성
+v.set2[7] <- pred.data # test 셋에 예측 데이터 열 추가
+a=arrange(v.set2, desc(V7)) # 예측 값 순서대로 내림차순 정렬
+sum(a[1:500, 6])/500 # 예측 값 상위 500위까지 카운트하여 예측력 계산 / 예측력: 18.2%
+anova(fit.final) # F값 확인 - F값 전부 1% 미만
+summary(fit.final) # P값 확인 - P값 전부 1% 미만
+
+#-# 예측력: 18.2%
+#-# 유효변수: gender, frequency, recency
+
+
+########### 기본 변수 LASSO 1-2##############
+
+
+x=model.matrix(purchase~.,t.set2)[,-1] # LASSO 적용을 위한 훈련셋의 x 매트릭스 생성
+x2=model.matrix(purchase~.,v.set2)[,-1] # 테스트셋 적용을 위한 테스트셋의 x 매트릭스 생성
+y=t.set2$purchase # LASSO 적용을 위한 훈련셋의 y 매트릭스 생성
+
+grid=seq(0,0.036,length=5000) # 임의의 람다 값 설정(시행착오 통해 람다 값 범위 설정)
+lasso.mod=glmnet(x,y,alpha=1,lambda=grid, family = 'binomial') # LASSO 시행
+
+
+plot(lasso.mod)
+set.seed(1) # 랜덤값 고정
+cv.out=cv.glmnet(x,y, family='binomial', type.measure='auc') # 교차검증 수행
+
+plot(cv.out)
+bestlam=cv.out$lambda.min # 검정오차 가장 낮은 값(최적 람다) 출력 
+lasso.pred=predict(lasso.mod, s=bestlam, newx = x2, type='response') # 예측 셋 
+v.set2[7] <- as.numeric(lasso.pred) # 예측 값 테스트셋에 추가
+head(v.set2)
+a=arrange(v.set2, desc(V7)) # 예측 값 기준 내림차순 정렬
+sum(a[1:500, 6])/500 # 예측력 계산 - 예측력: 18.4%
+
+table(a[1:500, ]$purchase == 1)
+
+lasso.fin = glmnet(x,y,alpha=1,lambda=bestlam, family = 'binomial') # 최적람다 투입한 라쏘모형
+lasso.fin$beta # 최적 람다기준 변수 확인
+
+#-# 예측력: 18.4%
+#-# 유효변수: gender, frequency, recency, monetary
+
+##########변수 추가시 단순 선형2-1##############
+lm.fit = lm(purchase ~ ., data = t.set3) # 추가변수 모두 투입하여 회귀
+lm.fit2 = lm(purchase ~ 1, data = t.set3) # 절편생성 (전진선택용)
+
+for.fit=step(lm.fit2, direction = 'forward', scope = list(lower=lm.fit2, upper=lm.fit)) # 전진선택
+both.fit=step(lm.fit) # 둘다
+step(lm.fit, direction = 'backward') # 후진선택
+
+pred.data=predict(for.fit, newdata = v.set3, type="response") # 전진선택 변수 투입하여 회귀 (사용)
+pred.data2=predict(both.fit, newdata = v.set3, type="response") # 후진 및 양측 선택 변수 투입하여 회귀 (사용 안함)
+
+v.set3[10] <- pred.data
+#v.set3[10] <- pred.data2 # 예측력이 낮아 사용 안함 - 예측력: 18%
+
+View(v.set3)
+
+a=arrange(v.set3, desc(V10))
+sum(a[1:500, 6])/500
+
+anova(for.fit)
+summary(aaa)
+
+#-# 예측력: 18.4%
+#-# 유효변수: gender, frequency, recency, t.transaction_month
+
+#############변수 추가시 LASSO 2-2##########################
+x=model.matrix(purchase~.,t.set3)[,-1] # LASSO 적용을 위한 훈련셋의 x 매트릭스 생성
+x2=model.matrix(purchase~.,v.set3)[,-1] # 테스트셋 적용을 위한 테스트셋의 x 매트릭스 생성
+y=t.set3$purchase # LASSO 적용을 위한 훈련셋의 y 매트릭스 생성
+
+grid=seq(0,0.038,length=5000) # 임의의 람다 값 설정(시행착오 통해 람다 값 범위 설정)
+lasso.mod=glmnet(x,y,alpha=1,lambda=grid, family = 'binomial') # LASSO 시행
+head(lasso.mod)
+
+plot(lasso.mod)
+set.seed(1) # 랜덤값 고정
+cv.out=cv.glmnet(x,y, family='binomial', type.measure='auc') # 교차검증 수행
+
+plot(cv.out)
+bestlam=cv.out$lambda.min # 검정오차 가장 낮은 값(최적 람다) 출력 
+lasso.pred=predict(lasso.mod, s=bestlam, newx = x2, type='response') # 예측 셋 
+v.set3[10] <- as.numeric(lasso.pred) # 예측 값 테스트셋에 추가
+a=arrange(v.set3, desc(V10)) # 예측 값 기준 내림차순 정렬
+sum(a[1:500, 6])/500 # 예측력 계산 - 예측력: 18.2%
+
+table(a[1:500, ]$purchase == 1)
+
+lasso.fin = glmnet(x,y,alpha=1,lambda=bestlam, family = 'binomial') # 최적람다 투입한 라쏘모형
+lasso.fin$beta # 최적 람다기준 변수 확인
+
+#-# 예측력: 18.2% 
+#-# 유효변수: gender, frequency, recency, monetary, duration,
+
+
+
+##########변수 수정(sqrt)시 단순 선형3-1##############
+lm.fit = lm(purchase ~ ., data = t.set3) # 추가변수 모두 투입하여 회귀
+lm.fit2 = lm(purchase ~ 1, data = t.set3) # 절편생성 (전진선택용)
+
+for.fit=step(lm.fit2, direction = 'forward', scope = list(lower=lm.fit2, upper=lm.fit)) # 전진선택 변수 투입하여 회귀 (셋다 같음)
+both.fit=step(lm.fit) # 양측 선택 변수 투입하여 회귀 (셋다 같음)
+back.fit=step(lm.fit, direction = 'backward') # 후진 선택 변수 투입하여 회귀 (셋다 같음)
+
+pred.data=predict(for.fit, newdata = v.set3, type="response")  # 예측값 생성
+#pred.data2=predict(both.fit, newdata = v.set3, type="response")  
+#pred.data3=predict(back.fit, newdata = v.set3, type="response")
+
+v.set3[10] <- pred.data # 예측력 18.2%
+
+View(a)
+
+a=arrange(v.set3, desc(V10))
+sum(a[1:500, 6])/500 
+
+anova(for.fit) # F값 t.spending_transaction 유의확률 15%라 아슬하지 대체로 적합
+summary(for.fit) # T값 전부 95% 이내 유의함
+
+#-# 예측력: 18.2%
+#-# 유효변수: gender, frequency, recency, t.transaction_month, t.spending_transaction, t.spending_month
+
+##########변수 수정(sqrt)시 LASSO 3-2##############
+x=model.matrix(purchase~.,t.set3)[,-1] # LASSO 적용을 위한 훈련셋의 x 매트릭스 생성
+x2=model.matrix(purchase~.,v.set3)[,-1] # 테스트셋 적용을 위한 테스트셋의 x 매트릭스 생성
+y=t.set3$purchase # LASSO 적용을 위한 훈련셋의 y 매트릭스 생성
+
+grid=seq(0,0.036,length=5000) # 임의의 람다 값 설정(시행착오 통해 람다 값 범위 설정)
+lasso.mod=glmnet(x,y,alpha=1,lambda=grid, family = 'binomial') # LASSO 시행
+
+plot(lasso.mod)
+set.seed(1) # 랜덤값 고정
+cv.out=cv.glmnet(x,y, family='binomial', type.measure='auc') # 교차검증 수행
+
+plot(cv.out)
+bestlam=cv.out$lambda.min # 검정오차 가장 낮은 값(최적 람다) 출력 
+lasso.pred=predict(lasso.mod, s=bestlam, newx = x2, type='response') # 예측 셋 
+v.set3[10] <- as.numeric(lasso.pred) # 예측 값 테스트셋에 추가
+a=arrange(v.set3, desc(V10)) # 예측 값 기준 내림차순 정렬
+sum(a[1:500, 6])/500 # 예측력 계산 - 예측력: 18.8%
+
+table(a[1:500, ]$purchase == 1)
+
+lasso.fin = glmnet(x,y,alpha=1,lambda=bestlam, family = 'binomial') # 최적람다 투입한 라쏘모형
+lasso.fin$beta # 최적 람다기준 변수 확인
+
+#-# 예측력: 18.8%
+#-# 유효변수: gender, frequency, recency, monetary, t.transaction_month
