@@ -1,6 +1,8 @@
 ```{r}
+library(KoNLP)
 library(httr)
 library(rvest)
+library(dplyr)
 #Sys.getlocale()
 Sys.setlocale("LC_ALL", "Korean")
 client_id = 'pNeL9M2Busi7vWn4XkW6';
@@ -11,7 +13,7 @@ header = httr::add_headers(
 ```
 
 ```{r}
-query = '허니버터칩'
+query.n = query = '허니버터칩'
 # encoding 변화
 query = iconv(query, to = 'UTF-8', toRaw = T)
 # iconv(query, to = "UTF-8", toRaw = F)
@@ -64,7 +66,7 @@ final_dat = data.frame(final_dat, stringsAsFactors = F)
 ```{r}
 # 상위 블로거 검색
 
-library(dplyr)
+#library(dplyr)
 
 tb = final_dat %>% select(bloggername) %>% table()
 top_blogger = sort(tb, decreasing = T)[1:4]
@@ -171,5 +173,89 @@ points(xx,fit$fitted, type = 'l', lty = 2, lwd = 1.5, col = 'blue')
 final_dat[10,5]
 a = gsub(pattern = "<[/?A-Za-z]*>", replace = "", final_dat[10,5])
 a
+```
+
+```{r}
+dat_tmp <- final_dat
+for (i in 1:nrow(final_dat))
+{
+  dat_tmp[i,5]<- gsub(pattern = "<[/|A-Za-z]*>",  replace = "", final_dat[i,5])
+    dat_tmp[i,1]<- gsub(pattern = "<[/|A-Za-z]*>",  replace = "", final_dat[i,1])
+}
+```
+
+```{r}
+#library(KoNLP)
+#useSejongDic()
+extractNoun(a)
+```
+
+```{r}
+library(tm)
+text = dat_tmp[,5]
+cps = Corpus(VectorSource(text))
+dtm = tm::DocumentTermMatrix(cps, control = list(tokenize = extractNoun, removeNumber = T, removePunctuation = T))
+str(dtm)
+# sparse matrix(i = 행, j = 열, v = 값)
+```
+```{r}
+# Sparse Matrix 원리 참조
+library(Matrix)
+T3 <- spMatrix(3,4, i=c(1,3:1), j=c(2,4:2), x=1:4)
+T3
+
+rmat <- as.matrix(dtm) # 데이터가 작은 경우 매트릭스로 변경
+str(rmat)
+
+rmat <-spMatrix(dtm$nrow,dtm$ncol, i=dtm$i, j=dtm$j, x=dtm$v) #데이터가 클 경우 sparse matrix 사
+head(rmat)
+```
+
+```{r}
+#Matrix 관련 연산자 사용 가능
+#library(rvest)
+wcount<-colSums(rmat)
+wname <- dtm$dimnames$Terms
+wname <- rvest::repair_encoding(dtm$dimnames$Terms)
+colnames(rmat)<- wname
+str(wname)
+
+```
+
+```{r}
+sort.var <- sort(wcount,decreasing = T)[100]
+idx <- !( grepl(query.n, wname)| (wcount<=sort.var) )
+wname.rel <- wname[idx]
+wcount.rel <- wcount[idx]
+```
+
+```{r}
+library(wordcloud)
+pal <- brewer.pal(9, "Set1")
+wordcloud(wname.rel,freq = wcount.rel, colors = pal)
+
+
+```
+
+```{r}
+#상관분석
+bb <- rmat
+bb.freq <- sort(colSums(bb), decreasing = T)
+plot(log(bb.freq), pch = 19, type = 'l')
+```
+
+```{r}
+bb.freq <- bb.freq[bb.freq>quantile(bb.freq,0.99)]
+idx <- match(names(bb.freq), colnames(bb))
+bb.r <- bb[,idx]
+dim(bb.r)
+bb.r <- as.matrix(bb.r)
+
+```
+
+```{r}
+cor.mat <- cor(bb.r)
+image(cor.mat, col =terrain.colors(100))
+sort(cor.mat[1,], decreasing = T)[1:10]
 ```
 

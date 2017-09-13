@@ -1,0 +1,13 @@
+```{r}
+library(tuneR)
+header = add_headers('X-Naver-Client-Id' = client_id,'X-Naver-Client-Secret' = client_secret)
+url = paste0("https://openapi.naver.com/v1/voice/tts.bin")
+speech = 'jinho'
+encText = "�덈뀞�섏꽭��"
+data = list(speaker = speech,
+            speed = 0,
+            text = encText)
+url_post = POST(url,header, body = data, encode = 'form', write_disk('test.mp3',overwrite = T))
+mp3 = readMP3('test.mp3')
+play(mp3)
+```

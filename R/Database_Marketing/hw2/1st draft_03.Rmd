@@ -42,7 +42,7 @@ cat(sum(test1_result$purchase[1:500])/500)
 x=model.matrix(purchase~.,data = test_group1)[,-1] # LASSO 적용을 위한 훈련셋의 x 매트릭스 생성
 x2=model.matrix(purchase~.,data = valid_group1[,1:6])[,-1] # 테스트셋 적용을 위한 테스트셋의 x 매트릭스 생성
 y=test_group1$purchase # LASSO 적용을 위한 훈련셋의 y 매트릭스 생성
-dim(x)
+
 grid=seq(0,0.036,length=5000) # 임의의 람다 값 설정(시행착오 통해 람다 값 범위 설정)
 lasso.mod=glmnet(x,y,alpha=1,lambda=grid, family = 'binomial') # LASSO 시행
 
@@ -80,12 +80,13 @@ valid_group2 = order_01[2001:4000,]
 
 ```{r}
 #test2 = step(lm(purchase~., data = test_group2))
-test2 = lm(purchase~gender+recency+transaction+transaction_month, data = test_group2)
+test2 = lm(purchase~gender+recency+transaction+transaction_month+ spending_month + spending_transaction, data = test_group2)
 valid2 = predict(test2, newdata = valid_group2, type = "response")
 valid_group2[10] = valid2
 test2_result = arrange(valid_group2, desc(V10))
 
 summary(test2)
+anova(test2)
 cat('\n맞출 확률: ', sum(test2_result$purchase[1:500])/500, '\n\n')
 ```
 
@@ -94,7 +95,7 @@ cat('\n맞출 확률: ', sum(test2_result$purchase[1:500])/500, '\n\n')
 x=model.matrix(purchase~.,data = test_group2)[,-1] # LASSO 적용을 위한 훈련셋의 x 매트릭스 생성
 x2=model.matrix(purchase~.,data = valid_group2[,1:9])[,-1] # 테스트셋 적용을 위한 테스트셋의 x 매트릭스 생성
 y=test_group2$purchase # LASSO 적용을 위한 훈련셋의 y 매트릭스 생성
-dim(x)
+
 grid=seq(0,0.036,length=5000) # 임의의 람다 값 설정(시행착오 통해 람다 값 범위 설정)
 lasso.mod=glmnet(x,y,alpha=1,lambda=grid, family = 'binomial') # LASSO 시행
 
@@ -144,7 +145,7 @@ cat('\n맞출 확률: ', sum(test3_result$purchase[1:500])/500, '\n\n')
 x=model.matrix(purchase~.,data = test_group3)[,-1] # LASSO 적용을 위한 훈련셋의 x 매트릭스 생성
 x2=model.matrix(purchase~.,data = valid_group3[,1:9])[,-1] # 테스트셋 적용을 위한 테스트셋의 x 매트릭스 생성
 y=test_group3$purchase # LASSO 적용을 위한 훈련셋의 y 매트릭스 생성
-dim(x)
+
 grid=seq(0,0.036,length=5000) # 임의의 람다 값 설정(시행착오 통해 람다 값 범위 설정)
 lasso.mod=glmnet(x,y,alpha=1,lambda=grid, family = 'binomial') # LASSO 시행
 
@@ -165,6 +166,8 @@ cat('\n맞출 확률: ',sum(test3_result$purchase[1:500])/500, '\n\n')
 lasso.fin = glmnet(x,y,alpha=1,lambda=bestlam, family = 'binomial') # 최적람다 투입한 라쏘모형
 lasso.fin$beta # 최적 람다기준 변수 확인
 ```
+
+#############################
 
 
 
