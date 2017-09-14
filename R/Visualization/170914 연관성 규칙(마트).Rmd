@@ -1,0 +1,14 @@
+```{r}
+library(dplyr)
+library(arulesViz)
+data("Groceries")
+head(Groceries)
+str(Groceries)
+summary(Groceries)
+rules <- apriori(Groceries, parameter=list(support=0.001, confidence=0.5))
+```
+
+```{r}
+max(Groceries@data@i)
+```
+
