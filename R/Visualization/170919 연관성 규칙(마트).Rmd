@@ -1,0 +1,64 @@
+```{r}
+library(dplyr)
+library(arulesViz)
+data("Groceries")
+head(Groceries)
+str(Groceries)
+summary(Groceries)
+rules <- apriori(Groceries, parameter=list(support=0.001, confidence=0.5))
+```
+
+```{r}
+a_list <- list(
+  c("a","b","c"),
+  c("a","b"),
+  c("a","b","d"),
+  c("c","e"),
+  c("a","b","d","e")
+)
+
+## set transaction names
+names(a_list) <- paste("Tr",c(1:5), sep = "")
+a_list
+trans1 <- as(a_list, "transactions")
+summary(trans1)
+str(trans1)
+image(trans1)
+
+
+# matrix type
+a_matrix <- matrix(c(
+  1,1,1,0,0,
+  1,1,0,0,0,
+  1,1,0,1,0,
+  0,0,1,0,1,
+  1,1,0,1,1
+), ncol = 5)
+
+```
+
+```{r}
+# apriori algorithm
+
+rules <- apriori(Groceries, parameter=list(support=0.001, confidence=0.5))
+inspect(head(arules::sort(rules, by ="lift"),3))
+plot(rules, method = NULL, measure = "support", shading = "lift")
+plot(rules, measure=c("support", "lift"), shading="confidence")
+# �쐎rder,�� i.e., the number of items contained in the rule
+plot(rules, shading="order", control=list(main = "Two-key plot"))
+
+sel <- plot(rules, measure=c("support", "lift"), shading="confidence", interactive=TRUE)
+
+rules%>%quality()
+
+
+subrules <- head(sort(rules, by="lift"), 10)
+plot(subrules, method="graph",measure = 'lift',
+     shading = 'confidence')
+
+```
+
+```{r}
+install.packages('arulesViz')
+```
+

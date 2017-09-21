@@ -1,0 +1,16 @@
+```{r}
+library(tuneR)
+a = readMP3('directory&file')
+#play(a)
+WMCobj.L = WaveMC(data = a@left)
+plot(a@left, type = 'l')
+a@left[1:40000]
+
+?waveMC
+x = seq(0, 2*pi, length = 44100)
+channel = round(32000 * sin(440*x))
+WMCobj = WaveMC(data = channel)
+WMCobj
+
+```
+

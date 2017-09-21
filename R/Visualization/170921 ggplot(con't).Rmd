@@ -1,0 +1,171 @@
+Use of ggplot2
+
+```{r}
+library(ggplot2)
+```
+
+```{r}
+### geom_point()
+
+ggplot(data = msleep, aes(x = bodywt, y = sleep_total))+
+  ### 앞부분은 캔버스, 뒷부분은 실제 데이터 plotting
+  geom_point()
+
+```
+
+```{r}
+
+canvas = ggplot(data = msleep, aes(x = log(bodywt), y = sleep_total))
+canvas + geom_point()
+
+```
+
+```{r}
+scatterplot = ggplot(data = msleep, aes(x = log(bodywt), y = sleep_total, col = vore)) 
+scatterplot+ geom_point()
+```
+
+```{r}
+scatterplot = ggplot(data = msleep, aes(x = log(bodywt), y = sleep_total, col = vore)) 
+scatterplot+ geom_point() + facet_grid(~vore)
+```
+
+```{r}
+scatterplot + geom_point(size = 5) +xlab('Log Body Weight') + ylab("Total Hours Sleep") +ggtitle('Some Sleep Data')
+```
+
+```{r}
+
+#포유동물의 종류에 따라 수면시간을 비교하자.
+#가로축을 포유동물의 종류
+#세로축을 수면시간
+
+test_plot = ggplot(data = msleep, aes(x = vore, y = sleep_total))
+test_plot + geom_boxplot()
+```
+
+```{r}
+stripchart <- ggplot(msleep, aes(x = vore, y = sleep_total, col = vore))+
+geom_jitter(position = position_jitter(width = 0.2), size = 5, alpha = 0.5)
+stripchart
+```
+
+geom_line
+
+```{r}
+dane <- data.frame(mylevels=c(1,2,5,9), myvalues=c(2, 5, 3, 4))
+dane
+ggplot(dane, aes(x=factor(mylevels), y=myvalues)) + geom_line(group=c(1,1,3,1))+ geom_point(size=3)
+```
+
+```{r}
+data(economics)
+data("presidential")
+```
+
+```{r}
+ggplot(economics, aes(date, unemploy)) + geom_line()
+```
+
+```{r}
+presidential = subset(presidential, start > economics$date[1])
+ggplot(economics) + geom_rect(aes(xmin = start, xmax = end, fill = party), ymin = -Inf, ymax = Inf, data = presidential) + geom_line(aes(date, unemploy), data = economics)
+```
+
+```{r}
+library(datasets)
+data("airquality")
+plot(airquality$Ozone, type = 'l')
+```
+
+```{r}
+aq_trim = airquality[which(airquality$Month == 7 | airquality$Month == 8 | airquality$Month ==9),]
+aq_trim$Month = aq_trim$Month <- factor(aq_trim$Month,labels = c("July", "August", "September"))
+geom_line
+ggplot(aq_trim, aes(x = Day, y = Ozone, size = Wind, fill = Temp)) +
+  geom_point(shape = 21) +   ggtitle("Air Quality in New York by Day") +
+  labs(x = "Day of the month", y = "Ozone (ppb)") +
+  scale_x_continuous(breaks = seq(1, 31, 5))
+
+
+
+```
+
+```{r}
+festival.data = read.table(file = './data/wk6/downloadfestival.dat', sep = '\t', header = T)
+head(festival.data)
+
+Day1Histogram = ggplot(data = festival.data, aes(x = day1))
+Day1Histogram + geom_histogram()
+```
+
+```{r}
+Day1Histogram + geom_histogram(color = 'royalblue1', fill = 'royalblue2')
+```
+
+```{r}
+Day1Histogram +geom_histogram(color = 'royalblue1', fill = 'royalblue2', binwidth = 0.1)
+```
+
+```{r}
+# y축이 count가 아닌 density(상대)
+Day1Histogram + geom_histogram(binwidth = 0.2, aes(y = ..density..), color = 'royalblue1', fill = 'yellow')
+```
+
+```{r}
+Day1Histogram + geom_histogram(binwidth = 0.1, aes(y = ..density..), color = 'black', fill = 'lightblue') + geom_density(alpha = 0.2, fill = '#FF6666')
+```
+
+
+Advanced (use of long-format instead of wide-format)
+
+
+```{r}
+library(reshape2)
+festival.data.stack = melt(festival.data, id = c('ticknumb', 'gender'))
+colnames (festival.data.stack)[3:4] = c('day','score')
+```
+
+```{r}
+library(dplyr)
+festival.data.stack %>% arrange(ticknumb, day)
+```
+
+```{r}
+Histogram.3day2 = ggplot(data = festival.data.stack, aes( x = score)) + geom_histogram(binwidth = 0.4, color = 'black', fill = 'yellow') + labs( x = 'score', y = 'counts')
+Histogram.3day2
+```
+
+```{r}
+Histogram.3day2 + facet_grid(~gender)
+```
+
+```{r}
+Histogram.3day2 + facet_grid(gender~day)
+```
+
+```{r}
+Histogram.3day3 = ggplot(data = festival.data.stack, aes( x = score, y =..density..)) + geom_histogram(binwidth = 0.4, color = 'black', fill = 'yellow') + labs( x = 'score', y = 'density')
+Histogram.3day3
+```
+
+```{r}
+Histogram.3day3 + facet_grid(~gender)
+```
+
+```{r}
+Histogram.3day3 + facet_grid(gender~day)
+```
+
+```{r}
+scatterplot_fest = ggplot ( data = festival.data.stack, aes(x = gender, y = score, color = gender))+ geom_point(position = 'jitter') + facet_grid(~day)
+scatterplot_fest
+```
+
+```{r}
+scatterplot_fest + scale_color_manual(values = c('darkorange', 'darkorchid4'))
+```
+
+```{r}
+scatterplot_fest + geom_boxplot( alpha = 0.5, color = 'black', fill = 'orange')
+```

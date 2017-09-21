@@ -1,0 +1,40 @@
+```{r}
+library(ISLR)
+head(Auto)
+Auto = na.omit(Auto)
+```
+
+```{r}
+# applied (1)
+
+auto_simple_lm = lm(mpg~horsepower, data = Auto)
+
+summary(auto_simple_lm)
+
+predict(auto_simple_lm, newdata = data.frame(horsepower=98), interval = 'confidence', level = 0.9)
+
+
+attach(Auto)
+plot(horsepower, mpg)
+abline(a = as.numeric(auto_simple_lm$coefficients[1]), b = as.numeric(auto_simple_lm$coefficients[2]))
+plot(auto_simple_lm)
+
+```
+
+```{r}
+# applied (2)
+
+auto_multi_lm = lm(mpg~.-name, data = Auto)
+summary(auto_multi_lm)
+
+plot(auto_multi_lm)
+
+summary(lm(mpg~cylinders:displacement+ displacement:weight, data = Auto))
+```
+
+```{r}
+# applied (3)
+Carseats
+
+```
+

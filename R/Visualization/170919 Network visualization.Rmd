@@ -1,0 +1,40 @@
+```{r}
+library(networkD3)
+
+src <- c("A", "A", "A", "A", "B", "B", "C", "C", "D")
+target <- c("B", "C", "D", "J", "E", "F", "G", "H", "I")
+networkData <- data.frame(src, target)
+networkD3::simpleNetwork(networkData, fontSize = 15, zoom = T)
+```
+
+```{r}
+data(MisLinks)
+head(MisLinks)
+
+data(MisNodes)
+head(MisNodes)
+
+forceNetwork(Links = MisLinks, Nodes = MisNodes, Source = "source", Target = "target", Value = "value", NodeID = "name", Group = "group", opacity = 0.8, zoom = TRUE)
+```
+
+```{r}
+sankeyNetwork(Links = MisLinks, Nodes = MisNodes,
+             Source = "source", Target = "target",
+             Value = "value", NodeID = "name",
+             fontSize = 12, nodeWidth = 18)
+```
+
+```{r}
+##ChordDiagram
+
+library(circlize)
+name=c(3,10,10,3,6,7,8,3,6,1,2,2,6,10,2,3,3,10,4,5,9,10)
+feature=paste("feature ", c(1,1,2,2,2,2,2,3,3,3,3,3,3,3,4,4,4,4,5,5,5,5),
+              sep="")
+dat <- data.frame(name,feature)
+dat <- table(name, feature)
+dat
+
+
+chordDiagram(as.data.frame(dat), transparency = 0.5)
+```

@@ -1,0 +1,60 @@
+Use of ggplot2
+
+```{r}
+library(ggplot2)
+```
+
+```{r}
+### geom_point()
+
+ggplot(data = msleep, aes(x = bodywt, y = sleep_total))+
+  ### 앞부분은 캔버스, 뒷부분은 실제 데이터 plotting
+  geom_point()
+
+```
+
+```{r}
+
+canvas = ggplot(data = msleep, aes(x = log(bodywt), y = sleep_total))
+canvas + geom_point()
+
+```
+
+```{r}
+scatterplot = ggplot(data = msleep, aes(x = log(bodywt), y = sleep_total, col = vore)) 
+scatterplot+ geom_point()
+```
+
+```{r}
+scatterplot = ggplot(data = msleep, aes(x = log(bodywt), y = sleep_total, col = vore)) 
+scatterplot+ geom_point() + facet_grid(~vore)
+```
+
+```{r}
+scatterplot + geom_point(size = 5) +xlab('Log Body Weight') + ylab("Total Hours Sleep") +ggtitle('Some Sleep Data')
+```
+
+```{r}
+
+#포유동물의 종류에 따라 수면시간을 비교하자.
+#가로축을 포유동물의 종류
+#세로축을 수면시간
+
+test_plot = ggplot(data = msleep, aes(x = vore, y = sleep_total))
+test_plot + geom_boxplot()
+```
+
+```{r}
+stripchart <- ggplot(msleep, aes(x = vore, y = sleep_total, col = vore))+
+geom_jitter(position = position_jitter(width = 0.2), size = 5, alpha = 0.5)
+stripchart
+```
+
+geom_line
+
+```{r}
+dane <- data.frame(mylevels=c(1,2,5,9), myvalues=c(2, 5, 3, 4))
+ggplot(dane, aes(x=factor(mylevels), y=myvalues)) + geom_line(group = 1)+
+geom_point(size=3)
+```
+

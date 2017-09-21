@@ -1,0 +1,61 @@
+```{r}
+gc()
+rm(list=ls())
+dev.off()
+```
+
+```{r}
+library(maps)
+library(mapdata)
+```
+
+```{r}
+map(database = 'county')
+map(database = 'world', region = 'south korea')
+map('world2Hires', 'South Korea') 
+```
+
+```{r}
+data("us.cities")
+head(us.cities)
+```
+
+```{r}
+map('state', 'Georgia')
+map.cities(us.cities, country = 'GA')
+```
+
+```{r}
+map('world', fill = T, col = rainbow(1627))
+```
+
+```{r}
+data(unemp) # unemployed rate data
+data(county.fips) # county fips data
+head(unemp,3)
+head(county.fips)
+```
+
+```{r}
+unemp$colorBuckets <- as.numeric(cut(unemp$unemp, c(0, 2, 4, 6, 8, 10, 100)))
+colorsmatched <- unemp$colorBuckets[match(county.fips$fips, unemp$fips)]
+library(mapproj)
+colors = c("#F1EEF6","#D4B9DA","#C994C7","#DF65B0","#DD1C77","#980043")
+map("county", col = colors[colorsmatched], fill = TRUE, resolution = 0, lty = 0, projection = 'polyconic')
+
+#colorsmatched[1]
+#county.fips[1,]
+#unemp[1,]
+```
+
+```{r}
+wm = map_data('world')
+
+ur <- wm %>% dplyr::select(region)%>%unique()
+grep( "Korea", ur$region )
+
+map("world", ur$region[c(125,185)],fill = T, col = "blue")
+
+map("world2hires", ur$region[c(125,185)],fill = T, col = "blue")
+```
+
