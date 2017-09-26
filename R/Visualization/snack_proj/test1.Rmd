@@ -1,0 +1,39 @@
+---
+title: "Snack analysis"
+date: 'Sept. 26th, 2017'
+author: 'Park, Pablo Chanwoo'
+output: html_document
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 분석의 목적
+
+본 과자 분석의 목적은 다음과 같습니다.
+
+1. 유행하는 과자 종류에 대한 분석
+
+2. 소비자들이 선호하는 특서
+
+3. 기타 데이터에서 발견한 insight
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

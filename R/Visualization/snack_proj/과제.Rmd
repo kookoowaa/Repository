@@ -1,0 +1,74 @@
+---
+title: "Snack analysis"
+date: 'Sept. 26th, 2017'
+author: 'Park, Pablo Chanwoo'
+output: html_document
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 분석의 목적
+
+본 과자 분석의 목적은 다음과 같습니다.
+
+1. 유행하는 과자 종류에 대한 분석
+
+2. 소비자들이 선호하는 과자의 특성 분석
+
+3. 기타 데이터 기반 insight 발굴
+
+
+
+### 분석 절차
+
+1. 트위터 포스팅 분석
+  + 9/13부터 실시간으로 총 8,211개의 '과자' 관련 포스팅을 추출
+  + 8,211개의 포스팅 중 중복, 광고, 아이돌 관련 포스팅 제거 후 1,479개의 포스팅 확보
+
+
+* 이하 트위터 포스팅을 위해 KoNLP, tm, worldcloud, Matrix, 4개의 library 사용
+```{r}
+library(KoNLP)
+library(tm)
+library(wordcloud)
+library(Matrix)
+```
+
+
+* 트위터 크롤링은 파이썬을 활용
+```{r}
+twitter_txt = readLines('./twitter_text_modified.txt', encoding = 'UTF-8')
+twitter_txt = unique(twitter_txt)
+twitter_txt = gsub(pattern = '[ㅋㅎㅠㄱㅜ]*', replace='', twitter_txt)
+```
+
+
+```{r}
+
+cps = Corpus(VectorSource(twitter_txt))
+dtm = DocumentTermMatrix(cps, control = list(tokenize = extractNoun, removeNumber = T, removePunctuation = T))
+rmat <-spMatrix(dtm$nrow,dtm$ncol, i=dtm$i, j=dtm$j, x=dtm$v)
+
+wcount<-colSums(rmat)
+wname <- dtm$dimnames$Terms
+wname <- rvest::repair_encoding(dtm$dimnames$Terms)
+colnames(rmat)<- wname
+
+```
+
+```{r}
+# 판별 기준 부여
+sort.var <- sort(wcount,decreasing = T)[150]
+idx <- !( grepl('과자', wname) | (wcount<=sort.var)  |nchar(wname)==1 | grepl('내가', wname) | grepl('먹고', wname) | grepl('너무', wname) )
+wname.rel <- wname[idx]
+wcount.rel <- wcount[idx]
+```
+
+```{r}
+pal <- brewer.pal(9, "Set1")
+wordcloud(wname.rel,freq = wcount.rel, colors = pal)
+```
+
