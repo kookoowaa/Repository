@@ -181,8 +181,8 @@ b
 dat_tmp <- final_dat
 for (i in 1:nrow(final_dat))
 {
-  dat_tmp[i,5]<- gsub(pattern = '[ㅋㅎ]', replace='', gsub(pattern = "<[/|A-Za-z]*>",  replace = "", final_dat[i,5]))
-    dat_tmp[i,1]<- gsub(pattern = '[ㅋㅎ]', replace='',  gsub(pattern = "<[/|A-Za-z]*>",  replace = "", final_dat[i,1]))
+  dat_tmp[i,5]<- gsub(pattern = '[ㅋㅎㅠㅜ]', replace='', gsub(pattern = "<[/|A-Za-z]*>",  replace = "", gsub(pattern = "&[a-z]*;",  replace = "", final_dat[i,5])))
+    dat_tmp[i,1]<- gsub(pattern = '[ㅋㅎㅠㅜ]', replace='',  gsub(pattern = "<[/|A-Za-z]*>",  replace = "", gsub(pattern = "&[a-z]*;",  replace = "", final_dat[i,1])))
 }
 
 ```

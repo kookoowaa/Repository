@@ -10,65 +10,192 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## 분석의 목적
 
-본 과자 분석의 목적은 다음과 같습니다.
+ 
+
+> **Executive summary**
+
+###과자 데이터 분석을 통해 도출한 insight는 다음과 같습니다.
+
+####1. 국내 제과업체와 기성 과자에 대한 반감과 식습관 변화로 대체재가 부상 (노브랜드, 수입과자, 치킨, 라면)
+
+####2. 유아(엄마)를 타겟으로 한 과자 시장는 '아이배냇'이 독점
+
+####3. 기성 과자 중에서는 꼬북칩이 선방하고 있음
+
+  
+
+> **목적 및 분석 절차**
+
+#### **분석 목적**
+본 과자 데이터 분석은 다음 목적 하에 진행하였습니다.
 
 1. 유행하는 과자 종류에 대한 분석
 
 2. 소비자들이 선호하는 과자의 특성 분석
 
-3. 기타 데이터 기반 insight 발굴
+3. 기타 데이터 기반 insight 발굴  
 
 
 
-### 분석 절차
-
-1. 트위터 포스팅 분석
-  + 9/13부터 실시간으로 총 8,211개의 '과자' 관련 포스팅을 추출
-  + 8,211개의 포스팅 중 중복, 광고, 아이돌 관련 포스팅 제거 후 1,479개의 포스팅 확보
 
 
-* 이하 트위터 포스팅을 위해 KoNLP, tm, worldcloud, Matrix, 4개의 library 사용
-```{r}
+#### **분석 절차**
+
+1. 트위터 포스팅 분석 (최신 데이터)
+  * 9/13부터 실시간으로 총 8,211개의 '과자' 관련 포스팅을 추출
+  * 8,211개의 포스팅 중 중복, 광고, 아이돌 관련 포스팅 제거 후 1,479개의 포스팅으로 빈도 분석 수행
+
+2. 네이버 블로그 분석
+  + 1,000개의 블로그 검색 결과를 추출하여 insight 발굴
+  + '과자' 외 검색어를 변형하여 의미 있는 결과 도출 시도
+  + 연관성 외 최신 자료 기준으로 검색 시도
+
+3. library 사용
+  + KoNLP, tm, worldcloud, Matrix, rvest, httr, dplyr 등 총 7종의 library 사용
+```{r message=F}
 library(KoNLP)
 library(tm)
 library(wordcloud)
 library(Matrix)
+library(rvest)
+library(httr)
+library(dplyr)
 ```
+> **트위터 포스팅 분석**
 
+-- 트위터 포스팅은 파이썬으로 크롤링 후 정제하여 사용함
 
-* 트위터 크롤링은 파이썬을 활용
-```{r}
+*중복된 리트윗이나 'ㅋ', 'ㅎ', 'ㅠ' 와 같은 단일 문자 필터링*
+```{r message=F}
 twitter_txt = readLines('./twitter_text_modified.txt', encoding = 'UTF-8')
 twitter_txt = unique(twitter_txt)
 twitter_txt = gsub(pattern = '[ㅋㅎㅠㄱㅜ]*', replace='', twitter_txt)
 ```
 
-
-```{r}
-
+-- 텍스트를 단어(명사) 별로 구분하고, 출현 빈도를 산출  
+```{r warning=F, message=F}
 cps = Corpus(VectorSource(twitter_txt))
 dtm = DocumentTermMatrix(cps, control = list(tokenize = extractNoun, removeNumber = T, removePunctuation = T))
 rmat <-spMatrix(dtm$nrow,dtm$ncol, i=dtm$i, j=dtm$j, x=dtm$v)
 
-wcount<-colSums(rmat)
-wname <- dtm$dimnames$Terms
-wname <- rvest::repair_encoding(dtm$dimnames$Terms)
-colnames(rmat)<- wname
+wcount <- colSums(rmat)
+wname <- repair_encoding(dtm$dimnames$Terms)
 
 ```
+-- 출연 빈도가 높은 단어 200개 중에 단어 길이가 1이거나, 크게 의미가 없다고 판단되는 단어는 제외 (총 135개, 8번 이상 노출)  
+```{r message =F}
 
-```{r}
-# 판별 기준 부여
-sort.var <- sort(wcount,decreasing = T)[150]
+sort.var <- sort(wcount,decreasing = T)[200]
 idx <- !( grepl('과자', wname) | (wcount<=sort.var)  |nchar(wname)==1 | grepl('내가', wname) | grepl('먹고', wname) | grepl('너무', wname) )
 wname.rel <- wname[idx]
 wcount.rel <- wcount[idx]
 ```
-
-```{r}
-pal <- brewer.pal(9, "Set1")
-wordcloud(wname.rel,freq = wcount.rel, colors = pal)
+-- 워드 클라우드로 단어 빈도 확인  
+```{r message = F}
+pal <- brewer.pal(12, "Set3")
+wordcloud(wname.rel,scale=c(3.9,0.05),freq = wcount.rel, colors = pal)
 ```
 
+#### **결론**
+1. 최근 약 1주간 트위터에 노출 빈도가 높았던 과자 종류는 '요하이'(12회)와 '치토스'(9회)가 있음
+  + 실제 데이터를 들여다 본 결과, '요하이'는 과자 모델인 아이돌 워너원 때문에, '치토스'는 맥시카나의 치토스치킨 때문에 언급됨
+  + 각 과자의 인기도를 대변한다고 보기에는 어려우나, 소비자들에게 인지 될 가능성은 있다고 보임
+
+2. '아이스크림' 외 '치킨', '라면', '다이어트' 등도 과자의 대체재가 될 가능성이 높음
+  + 과자의 대체재는 아이스크림이란 생각이 일반적일 수 있지만, 치킨/라면 등 간단한 식사를 과자의 경쟁상대로 보는 것도 타당한 견해가 될 수 있음
+
+3. 짧은 길이의 포스팅으로 구성되는 트위터인 만큼 단어가 쉬운 경향이 있고, 검색어의 특성을 측정하기에 어려움이 있다고 판단함
+  + *검색어의 단순성에서 기인한 문제일 가능성도 다분함*
+
+=> Naver 블로그 검색 방식으로 2차 분석 진행
+
+
+> **Naver 블로그 분석**
+
+-- 마찬가지로 '과자' 라는 검색어로 크롤링 진행  
+```{r warning=F}
+client_id = 'pNeL9M2Busi7vWn4XkW6';
+client_secret = 'nTY9Mj5v2K';
+header = add_headers('X-Naver-Client-Id' = client_id, 'X-Naver-Client-Secret' = client_secret)
+
+query.n = query = '과자'
+query = iconv(query, to = 'UTF-8', toRaw = T)
+query = paste0('%', paste(unlist(query), collapse = '%'))
+query = toupper(query)
+```
+
+-- 연관성 기준으로 1,000개 데이터 추출 및 데이터 정제  
+```{r message=F}
+end_num = 1000
+display_num = 100
+start_point = seq(1, end_num, by = display_num)
+i = 1
+
+final_dat = NULL
+for(i in 1:length(start_point))
+{
+  url = paste0('https://openapi.naver.com/v1/search/blog.xml?query=',query,'&display=',display_num,'&start=',start_point[i],'&sort=sim')
+  url_body = read_xml(GET(url, header), encoding = "UTF-8")
+  title = url_body %>% xml_nodes('item title') %>% xml_text()
+  bloggername = url_body %>% xml_nodes('item bloggername') %>% xml_text()
+  postdate = url_body %>% xml_nodes('postdate') %>% xml_text()
+  link = url_body %>% xml_nodes('item link') %>% xml_text()
+  description = url_body %>% xml_nodes('item description') %>% html_text()
+  temp_dat = cbind(title, bloggername, postdate, link, description)
+  final_dat = rbind(final_dat, temp_dat)
+}
+```
+```{r message=F}
+final_dat = data.frame(final_dat, stringsAsFactors = F)
+
+dat_tmp <- final_dat
+for (i in 1:nrow(final_dat))
+{
+  dat_tmp[i,5]<- gsub('[ㅋㅎㅠㅜ]', '', gsub( "<[/|A-Za-z]*>",  "", gsub("&[a-z]*;",  "", gsub("http[/:a-z.]*",  "", final_dat[i,5]))))
+    dat_tmp[i,1]<- gsub('[ㅋㅎㅠㅜ]', '',  gsub( "<[/|A-Za-z]*>",  "", gsub("&[a-z]*;",  "", final_dat[i,1])))
+}
+```
+
+-– 텍스트를 단어(명사) 별로 구분하고, 출현 빈도를 산출
+```{r warning=F, message=F}
+text = dat_tmp[,5]
+cps = Corpus(VectorSource(text))
+dtm = DocumentTermMatrix(cps, control = list(tokenize = extractNoun, removeNumber = T, removePunctuation = T))
+rmat <-spMatrix(dtm$nrow,dtm$ncol, i=dtm$i, j=dtm$j, x=dtm$v)
+
+wcount <- colSums(rmat)
+wname <- repair_encoding(dtm$dimnames$Terms)
+```
+
+-- 출연 빈도가 높은 단어 200개 중에 단어 길이가 1이거나, 크게 의미가 없다고 판단되는 단어는 제외 (총 136개, 13번 이상 노출)  
+```{r message =F}
+
+sort.var <- sort(wcount,decreasing = T)[200]
+idx <- !( grepl(query.n, wname) | (wcount<=sort.var)  |nchar(wname)==1 |grepl('있', wname))
+wname.rel <- wname[idx]
+wcount.rel <- wcount[idx]
+```
+
+-- 워드 클라우드로 단어 빈도 확인  
+```{r message = F}
+pal <- brewer.pal(12, "Paired")
+wordcloud(wname.rel,scale=c(3.8,0.05),freq = wcount.rel, colors = pal)
+```
+
+#### **결론**
+1. 기성 과자 중에서는 꼬북칩이 우세
+  + '과자' 검색 연관단어 top 200 중에 유일하게 꼬북칩만 기성 과자 중 이름을 올림
+  + 한때 SNS 입소문 났던 과자 답게 노출이 많으며, 또 일관되게 긍정적으로 평가 내리고 있음
+
+2. 아기용 과자 (아이배냇, 베베핑거, 유기농 외)
+  + 기성 과자에 대한 블로그 글보다 유기농 아기용 과자에 대한 블로그 글 수가 더 많아, 이런 관심이 실제로도 상당할 것으로 보임
+  + 다만, 아기용 과자에 대한 관심이 높은 것은, 소비자의 구매의사결정 과정이 기성 과자보다 아기용 과자를 살때 훨씬 복잡하기 때문일 수 있고 실수요가 기성 과자만큼 높다고 단정짓기는 어려움
+  + *또한, 블로거 특성 상 2~30대 여성이 주를 이루다 보니 나타나는 현상일 수도 있음*
+
+3. 대체재의 약진 (일본, 대만, 노브랜드, 천안, 편의점)
+  + 기존 브랜드에 대한 블로그 빈도보다 대체 제품에 대한 블로그 글 빈도가 눈에 띔
+  + 특히 편의점 PB 제품과 노브랜드에 대한 충성도가 상당한 것으로 보임
+  
+> 
+> **번외. 기성 과자 중 인기있는 과자 순위는? **
