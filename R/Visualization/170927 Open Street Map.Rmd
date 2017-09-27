@@ -1,0 +1,223 @@
+```{r}
+library(OpenStreetMap)
+```
+
+```{r}
+library(ggplot2)
+map = openmap(upperLeft = c(43, 119), lowerRight = c(33, 134),
+              type = 'bing')
+plot(map)
+
+```
+
+```{r}
+nm = c("osm", "maptoolkit-topo", "stamen-toner", 
+        "stamen-watercolor", "esri", "esri-topo", 
+        "nps", "apple-iphoto", "skobbler")
+par(mfrow=c(3,3))
+for(i in 1:length(nm)){
+  map <- openmap(c(43.46,119.94),
+                 c(33.22,133.98),
+                 minNumTiles=3,type=nm[i])
+  plot(map, xlab = paste(nm[i]))
+}
+```
+
+```{r}
+map1 <- openmap(c(43.46,119.94), c(33.22,133.98))
+plot(map1) 
+abline(h = 38, col = 'blue')
+str(map1)
+map1$tiles[[1]]$projection
+#CRS(coordinate reference system)을 통해 맵 구현
+```
+
+```{r}
+library(sp)
+map_p <- openproj(map1, projection = CRS("+proj=longlat"))
+str(map_p)
+
+plot(map_p)
+abline(h = 38, col = 'blue')
+
+```
+
+```{r}
+#한국에 적합한 위경도
+
+map_p <- openproj(map1, projection = 
+                    CRS("+proj=utm +zone=52N + datum=WGS84"))
+plot(map_p)
+abline(h = 38, col = 'blue')
+```
+
+```{r}
+library(sp)
+# 데이터 프레임화 (lon/lat 고정)
+a  <-data.frame(lon =  seq(100,140,by = 0.1),     lat =  38)
+sp::coordinates(a) = ~ lon + lat
+str(a)
+```
+
+```{r}
+# NA인 a @proj4sting을 입력
+sp::proj4string(a) = "+proj=longlat"
+str(a)
+```
+
+```{r}
+# 좌표계 변환
+a_tf = spTransform(a, CRS('+proj=utm +zone=52N + datum=WGS84'))
+str(a_tf)
+```
+
+```{r}
+plot(map_p)
+points(a_tf@coords[,1],a_tf@coords[,2], type = 'l', col = 'blue')
+```
+
+```{r}
+library(sp)
+library(ggmap)
+map = openmap(upperLeft = c(43, 119),lowerRight = c(33, 134))
+seoul_loc = geocode('Seoul')
+coordinates(seoul_loc) = ~lon + lat
+proj4string(seoul_loc) = "+proj=longlat +datum=WGS84" 
+seoul_loc_Tf = spTransform(seoul_loc,
+                  CRS(as.character(map$tiles[[1]]$projection)))
+plot(map)
+add.pie(z=1:2,labels = c('a','b'),
+        x = seoul_loc_Tf@coords[1],
+        y = seoul_loc_Tf@coords[2], radius = 100000)
+```
+
+
+### Crime Map
+
+```{r}
+data(crime)
+head(crime, 2)
+```
+```{r}
+violent_crimes = subset(crime,
+                   offense != "auto theft" & 
+                   offense != "theft" & 
+                   offense != "burglary")
+violent_crimes$offense <- factor(violent_crimes$offense,
+      levels = c("robbery", "aggravated assault", "rape", "murder"))
+violent_crimes = subset(violent_crimes,
+                      -95.39681 <= lon & lon <= -95.34188 &
+                      29.73631 <= lat & lat <=  29.78400)
+```
+```{r}
+HoustonMap = qmap("houston", zoom = 14, color = "bw", legend = "topleft")
+HoustonMap + geom_point(aes(x = lon, y = lat,
+                            colour = offense, size = offense),
+                            data = violent_crimes)
+```
+```{r}
+HoustonMap +
+    geom_point(aes(x = lon, y = lat,
+                   colour = offense, size = offense),
+               data = violent_crimes) +
+    geom_density2d(aes(x = lon, y = lat), size = 0.2 , bins = 4, 
+                   data = violent_crimes)
+```
+```{r}
+HoustonMap +
+    geom_point(aes(x = lon, y = lat,
+                   colour = offense, size = offense),
+               data = violent_crimes) +
+    geom_density2d(aes(x = lon, y = lat), size = 0.2 , bins = 4, 
+                   data = violent_crimes) +
+    stat_density2d(aes(x = lon, y = lat, fill = ..level.., alpha = ..level..), size = 2, bins = 4, data = violent_crimes, geom = 'polygon')
+```
+
+#Practice
+
+```{r}
+load('./data/wk6/airport.Rdata')
+head(airport_krjp)
+```
+```{r}
+map = ggmap(get_googlemap(center = c(lon=134, lat=36),
+                          zoom = 5, maptype='roadmap', color='bw'))
+map + geom_line(data=link_krjp,aes(x=lon,y=lat,group=group), 
+                col='grey10',alpha=0.05) + 
+  geom_point(data=airport_krjp[complete.cases(airport_krjp),],
+             aes(x=lon,y=lat, size=Freq), colour='black',alpha=0.5) + 
+  scale_size(range=c(0,15))
+```
+
+```{r}
+library(sp); library(gstat); library(automap);
+library(rgdal); library(e1071); library(lattice);
+library(ggplot2); library(raster);library(viridis)
+```
+```{r}
+seoul032823 <- read.csv ("./data/wk6/seoul032823.csv")
+head(seoul032823)
+```
+```{r}
+#library(raster)
+skorea <- getData(name ="GADM", country= "KOR", level=2)
+head(skorea,2)
+```
+```{r}
+head(skorea@polygons[[1]]@Polygons[[1]]@coords)
+```
+
+```{r}
+skorea = fortify(skorea)
+```
+
+```{r}
+ggplot() + geom_map(data= skorea, map= skorea,
+  aes(map_id=id,group=group),fill=NA, colour="black") +
+  geom_point(data=seoul032823, aes(LON, LAT, col = PM10),alpha=0.7) +
+  labs(title= "PM10 Concentration in Seoul Area at South Korea",
+       x="Longitude", y= "Latitude", size="PM10(microgm/m3)")
+```
+```{r}
+coordinates(seoul032823) <- ~LON+LAT
+LON.range <- c(126.5, 127.5)
+LAT.range <- c(37, 38)
+seoul032823.grid <- expand.grid(
+  LON = seq(from = LON.range[1], to = LON.range[2], by = 0.01),
+  LAT = seq(from = LAT.range[1], to = LAT.range[2], by = 0.01))
+```
+```{r}
+plot(seoul032823.grid)
+points(seoul032823, pch= 16,col="red")
+```
+```{r}
+coordinates(seoul032823.grid)<- ~LON+LAT ## sp class로 변경 (grid)
+gridded(seoul032823.grid)<- T
+plot(seoul032823.grid)
+points(seoul032823, pch= 16,col="red")
+```
+```{r}
+# 비어있는 그리드에 추정값을 기입
+seoul032823_OK <- autoKrige(formula = PM10~1,
+                            input_data = seoul032823,
+                            new_data = seoul032823.grid )
+# autoKrige는 spatial data 필요, ggplot은 dataframe 형태 필요
+```
+```{r}
+myPoints <- data.frame(seoul032823)
+myKorea <- data.frame(skorea)
+myKrige <- data.frame(seoul032823_OK$krige_output@coords, 
+              pred = seoul032823_OK$krige_output@data$var1.pred)   
+```
+```{r}
+ggplot()+ theme_minimal() +
+  geom_tile(data = myKrige, aes(x= LON, y= LAT, fill = pred)) +   #격자
+  geom_map(data= myKorea, map= myKorea, aes(map_id=id,group=group),
+           fill=NA, colour="black") +
+  coord_cartesian(xlim= LON.range ,ylim= LAT.range) +
+  labs(title= "PM10 Concentration in Seoul Area at South Korea",
+       x="Longitude", y= "Latitude")+
+  theme(title= element_text(hjust = 0.5,vjust = 1,face= c("bold")))+
+  scale_fill_viridis(option="magma")
+```
+

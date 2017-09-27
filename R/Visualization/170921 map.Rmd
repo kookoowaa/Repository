@@ -1,12 +1,10 @@
-```{r}
-gc()
-rm(list=ls())
-dev.off()
-```
 
 ```{r}
 library(maps)
 library(mapdata)
+library(dplyr)
+library(ggplot2)
+library(mapplots)
 ```
 
 ```{r}
@@ -55,7 +53,23 @@ ur <- wm %>% dplyr::select(region)%>%unique()
 grep( "Korea", ur$region )
 
 map("world", ur$region[c(125,185)],fill = T, col = "blue")
+abline(h=38)
+#points(x=37.51974777, y = 126.85398553, pch=9, col = 'red')
 
-map("world2hires", ur$region[c(125,185)],fill = T, col = "blue")
+
+## <LAT>37.51974777</LAT>
+## <LNG>126.85398553</LNG>
+```
+```{r}
+#pie chart on map
+library(mapplots)
+library(ggmap)
+map('worldHires', 'South Korea')
+seoul_loc = geocode('seoul')
+busan_loc = geocode('Busan')
+add.pie(z=c(1,4,6),labels = c('a','b','c'), 
+        x = seoul_loc$lon, y = seoul_loc$lat, radius = 0.8)
+add.pie(z=4:3,labels = c('a','b'),
+        x = busan_loc$lon, y = busan_loc$lat, radius = 0.5)
 ```
 
