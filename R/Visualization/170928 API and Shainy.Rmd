@@ -1,0 +1,134 @@
+```{r}
+library(httr)
+library(rvest)
+
+```
+
+```{r}
+service_key = "X%2BqJnBkgzZcpxzwi%2BOJ94wq54CYi53KymXOFKhc5rTIRL%2BlYAoDuh2lK4doTPiUqISVlw1JE1MN42AZUT4sVhQ%3D%3D"
+```
+
+```{r}
+url = paste0("http://openapi.airkorea.or.kr/openapi/services/rest/",
+             "ArpltnInforInqireSvc/getCtprvnMesureSidoLIst?",
+             "sidoName=서울",
+             "&searchCondition=DAILY",
+             "&pageNo=",1,
+             "&numOfRows=",25,
+             "&ServiceKey=",service_key)
+```
+
+```{r}
+url_get = GET(url)
+url_xml = read_xml(url_get)
+url_xml
+```
+
+```{r}
+item_list = xml_nodes(url_xml, 'item')
+item_list
+item_list[[1]]
+```
+
+```{r}
+tmp_item = xml_children(item_list[1])
+tmp_item
+item_list[[1]]
+```
+
+```{r}
+tmp_item = xml_text(tmp_item)
+tmp_item
+```
+
+```{r}
+item_list = lapply(item_list, function(x) return(xml_text(xml_children(x))))
+item_list
+```
+
+```{r}
+### 참조 ###
+item_dat = do.call('rbind',item_list)
+item_dat = data.frame(item_dat, stringsAsFactors = F)
+
+tmp = xml_nodes(url_xml, 'items item') 
+colnames_dat = html_name(xml_children(tmp[[1]]))
+colnames(item_dat) = colnames_dat
+item_dat
+```
+
+
+> Shiny!
+
+
+```{r}
+library(shiny)
+ui = fluidPage(
+  titlePanel("Welcome shiny!"),
+  sidebarLayout(
+    sidebarPanel(
+      textInput("input_text", "텍스트를 입력하세요.")
+      #textOutput("output_text")
+          ),
+    mainPanel(
+      textOutput("output_text")
+      #textInput("input_text", "텍스트를 입력하세요.")
+    )
+  )
+)
+
+server = function(input, output)
+{
+  output$output_text = renderText({
+    input$input_text
+    
+    #paste('하하하 ', input$input_text)
+  })
+}
+
+shinyApp(ui = ui, server= server)
+```
+
+```{r}
+ui = fluidPage(
+  headerPanel('Iris k-means clustering'),
+  sidebarPanel(
+    selectInput('xcol', 'X Variable', names(iris)),
+    selectInput('ycol', 'Y Variable', names(iris),
+                selected=names(iris)[[2]]),
+    numericInput('clusters', 'Cluster count', 3,
+                 min = 1, max = 9),
+    checkboxInput('center_tf','Center points')
+  ),
+  mainPanel(
+    plotOutput('plot1')
+  )
+)
+
+#서버에서 return해야 할 변수는: xcol, ycol, clusters, plot1, center_tf
+
+server = function(input, output)
+{
+  selectedData = reactive({
+    iris[, c(input$xcol, input$ycol)]
+  })
+  clusters <- reactive({
+    kmeans(selectedData(), input$clusters)
+  })
+
+  output$plot1 <- renderPlot({
+    plot(selectedData(),
+         col = clusters()$cluster,
+         pch = 20, cex = 3)
+    if(input$center_tf) points(clusters()$centers, pch = 4, cex = 4, lwd = 4)
+  })
+}
+
+shinyApp(ui = ui, server= server)
+```
+
+
+```{r}
+#kmeans(iris[,c('Sepal.Length','Petal.Width')],5)
+```
+
