@@ -1,0 +1,173 @@
+
+```{r}
+library(httr)
+library(rvest)
+library(dplyr)
+```
+
+```{r}
+key = '6b46504b456b6f6f313130734d624851'
+parking_info = data.frame()
+```
+
+```{r}
+for (i in 0:9){
+  start_num = i*1000+1
+  url = paste0('http://openapi.seoul.go.kr:8088/',
+             key,
+             '/xml/SearchParkingInfo/',
+             start_num,
+             '/',
+             start_num+999)
+  url_get = GET(url)
+  url_xml = read_xml(url_get)
+  item_list = xml_nodes(url_xml, 'row')
+  
+  item_list = lapply(item_list, function(x) return(xml_text(xml_children(x))))
+  item_dat = do.call('rbind',item_list)
+  item_dat = data.frame(item_dat, stringsAsFactors = F)
+
+  tmp = xml_nodes(url_xml, 'row') 
+  colnames_dat = html_name(xml_children(tmp[[1]]))
+  colnames(item_dat) = colnames_dat
+  
+  parking_info = rbind(parking_info ,item_dat[!duplicated(item_dat$PARKING_CODE),])
+  parking_info = parking_info[!duplicated(parking_info$PARKING_CODE),]
+  print(i)
+}
+```
+
+```{r}
+parking_info_summarized = parking_info[c(1:3, 7, 8, 21, 22, 24:27)]
+```
+
+```{r}
+parking_info_summarized = parking_info[c(1:3, 7, 8, 21, 22, 24:27)]
+write.csv(parking_info_summarized, './final_proj/parking_info.csv')
+```
+
+```{r}
+PI = read.csv('./final_proj/parking_info.csv')
+```
+
+```{r}
+#지역정보 필터링
+PI$ADDR = as.factor(gsub('구 [가-힣0-9a-zA-Z ()~-]*', '구', PI$ADDR))
+```
+
+```{r}
+#시간당 금액 산출
+
+PI %>% filter(PAY_NM=='유료') %>% filter(ADD_RATES==0) -> tmp
+tmp$ADD_RATES = tmp$RATES
+tmp$ADD_TIME_RATE = tmp$TIME_RATE
+PI = rbind(tmp,PI)
+PI = PI[!duplicated(PI$PARKING_CODE),]
+
+#누락된 데이터 추가 http://parking.seoul.go.kr/web/MapMain.aspx
+PI[PI$PARKING_CODE%in%c(173141, 171802),]$ADD_RATES = PI[PI$PARKING_CODE%in%c(173141, 171802),]$RATES
+PI[PI$PARKING_CODE%in%c(173141, 171802),]$ADD_TIME_RATE = PI[PI$PARKING_CODE%in%c(173141, 171802),]$TIME_RATE
+#PI[PI$PARKING_CODE==171802,]$TIME_RATE = 120
+#PI[PI$PARKING_CODE==171802,]$ADD_TIME_RATE = 120
+#PI[PI$PARKING_CODE==171802,]$ADD_RATES = 2000
+#PI[PI$PARKING_CODE==173141,]$TIME_RATE = 5
+#PI[PI$PARKING_CODE==173141,]$ADD_TIME_RATE = 5
+PI[PI$PARKING_CODE==1010089,]$TIME_RATE = 0
+
+attach(PI)
+RATE_HOUR = RATES+ADD_RATES*(60-TIME_RATE)/ADD_TIME_RATE
+RATE_HOUR[is.nan(RATE_HOUR)] = 0
+detach(PI)
+
+PI = cbind(PI[,-1],RATE_HOUR)
+PI[is.na(RATE_HOUR),]
+```
+
+
+인구정보 ref: http://stat.seoul.go.kr/octagonweb/jsp/WWS7/WWSDS7100.jsp
+```{r}
+library(xlsx)
+population = read.xlsx2('./final_proj/population.xls', 1, encoding = 'utf-8')
+```
+
+```{r}
+pop_info = population[,2:5] %>% filter(동=='소계') %>% select(-동)
+colnames(pop_info) = c('ADDR', 'HOUSEHOLD', 'POPULATION')
+write.csv(pop_info, './final_proj/Population_information.csv')
+```
+
+```{r}
+population_info = read.csv('./final_proj/Population_information.csv')[-1]
+population_info
+```
+
+```{r}
+PI_by_ADDR = PI%>%group_by(ADDR)%>%select(CAPACITY,RATE_HOUR)%>%summarise(CAPA = sum(CAPACITY), RATE = as.integer(mean(RATE_HOUR[RATE_HOUR!=0])))
+```
+
+```{r}
+info_by_ADDR = left_join(PI_by_ADDR, population_info, by = 'ADDR')
+info_by_ADDR = info_by_ADDR %>% mutate(CAPA_HOUSE = CAPA/HOUSEHOLD, CAPA_POP = CAPA/POPULATION)
+
+```
+
+```{r}
+info_by_ADDR %>% arrange(desc(CAPA_HOUSE)) %>% head(5)
+info_by_ADDR %>% arrange(desc(CAPA_HOUSE)) %>% tail(5)
+```
+
+
+차량정보 ref: http://stat.seoul.go.kr/octagonweb/jsp/WWS7/WWSDS7100.jsp
+```{r}
+library(xlsx)
+vehicle = read.xlsx2('./final_proj/vehicle.xls', 1, encoding = 'utf-8')
+```
+
+```{r}
+vehicle = vehicle[c(-1,-2),c(2:4,8)]
+colnames(vehicle) = c('ADDR', 'REGISTERED','CAPACITY', 'RATIO')
+left_join(info_by_ADDR,vehicle[1:2], by = 'ADDR')
+```
+
+
+
+
+
+
+
+
+```{r}
+library(ggmap)
+#library(ggplot2)
+SeoulMap = qmap("seoul", zoom = 11, scale = 4, maptype = "toner-lite", source= 'stamen', legend = "topleft", extent = 'device', size = c(1280,1280))
+
+SeoulMap + geom_point(aes(x = LNG, y = LAT,
+                            colour = RATE_HOUR, size = CAPACITY, alpha = 0.1),
+                            data = PI)
+
+SeoulMap + geom_point(aes(x = LNG, y = LAT,
+                            colour = RATE_HOUR, size = CAPACITY, alpha = 0.1),
+                            data = PI)+
+  geom_density2d(aes(x = LNG, y = LAT), size = 0.2 , bins = 4, 
+                   data = PI) +
+    stat_density2d(aes(x = LNG, y = LAT, fill = ..level.., alpha = ..level..), size = 2, bins = 4, data = PI, geom = 'polygon')
+```
+
+```{r}
+library(raster)
+skorea <- getData(name ="GADM", country= "KOR", level=2)
+head(skorea,2)
+```
+
+```{r}
+skorea = fortify(skorea)
+```
+
+```{r}
+ggplot() + geom_map(data= skorea, map= skorea,
+  aes(map_id=id,group=group),fill=NA, colour="black") +
+  geom_point(data=PI, aes(LNG, LAT, col = CAPACITY),alpha=0.7)
+
+#+ labs(title= "PM10 Concentration in Seoul Area at South Korea",
+#       x="Longitude", y= "Latitude", size="PM10(microgm/m3)")
+```
