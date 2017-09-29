@@ -1,0 +1,74 @@
+목적
+
+서울시 주차대란이라는 이야기(배경)
+공용 주차장 시스템은 잘 갖춰져 있는지? (호기심)
+
+분석방법
+1. 서울시 공용 주차장 위치와 빈도
+  +@ 가격은?
+2. 구 별로 가구/인구대비 적절한지
+3. 가결론
+
+4. 검증
+5. 총 주차장 수
+6. 아파트 주차장 감안
+
+
+
+> **서울 시 공영 주차장 운영 현황 분석**
+
+#####**서울시 열린 데이터 광장의 open API를 활용하여 데이터를 집계하였고, 주소는 다음와 같습니다:**
+
+#####**http://data.seoul.go.kr/openinf/sheetview.jsp?infId=OA-13122&tMenu=11**
+
+#####**이하 데이터 수집/처리/분석 과정을 참조하여 주십시오.**
+
+1. 데이터 수집
+  + 필수 라이브러리 호출(httr, rvest, dplyr)
+```{r}
+library(httr)
+library(rvest)
+library(dplyr)
+```
+  
+  + 데이터 수입을 위한 데이터 프레임 생성 및 자료 업데이트를 위한 csv 파일 호출
+  
+--- 상기 API를 통해서는 최근 10,000번째 데이터까지만 호출 할 수 있음
+
+--- API의 출력값은 1개 노상주차장 내 모든 개별 주차공간의 좌표를 담고 있음
+
+--- 서울시 내 공영주차장 수는 666개로 추정하며, 중복값을 제외하고 총 666개의 obs.를 모을 때까지 반복적으로 업데이트가 필요 (1분 주기 업데이트)
+```{r}
+parking_info = data.frame()
+original_set = read.csv('d:/github/r/visualization/final_proj/park_info.csv')[,-1]
+```
+
+  + API 호출을 위한 key 할당 및 크롤링 반복문 작성
+```{r}
+key = '6b46504b456b6f6f313130734d624851'
+
+for (i in 0:9){
+  start_num = i*1000+1                                                                 # 시작번호는 1번부터 9,001까지 1,000개 단위로 호출
+  url = paste0('http://openapi.seoul.go.kr:8088/',
+             key,
+             '/xml/SearchParkingInfo/',
+             start_num,
+             '/',
+             start_num+999)
+  url_xml = read_xml(GET(url))
+  item_list = xml_nodes(url_xml, 'row')                                                # 노드명 row 기준으로 주차장 정보가 분류
+  
+  item_list = lapply(item_list, function(x) return(xml_text(xml_children(x))))
+  item_dat = do.call('rbind',item_list)
+  item_dat = data.frame(item_dat, stringsAsFactors = F)
+
+  tmp = xml_nodes(url_xml, 'row') 
+  colnames_dat = html_name(xml_children(tmp[[1]]))
+  colnames(item_dat) = colnames_dat                                                    # 데이터 프레임화 및 열이름 부여
+  
+  # 중복 제거
+  parking_info = rbind(parking_info ,item_dat)                                         # 미리 만들어 둔 데이터프레임에 크롤링 데이터 추가
+  parking_info = parking_info[!duplicated(parking_info$PARKING_CODE),]                 # PARKING_CODE 기준으로 중복 자료 삭제
+  print(i)                                                                             # 에러 체크
+}
+```

@@ -1,13 +1,41 @@
 
+목적
+
+서울시 주차대란이라는 이야기(배경)
+공용 주차장 시스템은 잘 갖춰져 있는지? (호기심)
+
+분석방법
+1. 서울시 공용 주차장 위치와 빈도
+  +@ 가격은?
+2. 구 별로 가구/인구대비 적절한지
+3. 가결론
+
+4. 검증
+5. 총 주차장 수
+6. 아파트 주차장 감안
+
+
+
+> 서울 시 공용 주차장 운영 현황 분석  
+
+#####*서울시 열린 데이터 광장의 open API를 활용하여 데이터를 집계하였고, 주소는 다음와 같습니다:*
+
+#####*http://data.seoul.go.kr/openinf/sheetview.jsp?infId=OA-13122&tMenu=11*
+
+#####*이하 데이터 수집/처리/분석 과정을 참조하여 주십시오.*
+
+1. 데이터 수집
+  + \t 필수 라이브러리 호출(httr, rvest, dplyr)
 ```{r}
 library(httr)
 library(rvest)
 library(dplyr)
 ```
-
+  + API 
 ```{r}
 key = '6b46504b456b6f6f313130734d624851'
 parking_info = data.frame()
+original_set = read.csv('d:/github/r/visualization/final_proj/park_info.csv')[,-1]
 ```
 
 ```{r}
@@ -19,8 +47,7 @@ for (i in 0:9){
              start_num,
              '/',
              start_num+999)
-  url_get = GET(url)
-  url_xml = read_xml(url_get)
+  url_xml = read_xml(GET(url))
   item_list = xml_nodes(url_xml, 'row')
   
   item_list = lapply(item_list, function(x) return(xml_text(xml_children(x))))
@@ -31,6 +58,7 @@ for (i in 0:9){
   colnames_dat = html_name(xml_children(tmp[[1]]))
   colnames(item_dat) = colnames_dat
   
+  # 중복 제거
   parking_info = rbind(parking_info ,item_dat[!duplicated(item_dat$PARKING_CODE),])
   parking_info = parking_info[!duplicated(parking_info$PARKING_CODE),]
   print(i)
@@ -39,15 +67,18 @@ for (i in 0:9){
 
 ```{r}
 parking_info_summarized = parking_info[c(1:3, 7, 8, 21, 22, 24:27)]
+parking_info_renewed = rbind(parking_info_summarized, original_set)
+parking_info_renewed = parking_info_summarized[!duplicated(parking_info_summarized$PARKING_CODE),]
+
+# maximum 666
+if (dim(original_set)[1] < dim(parking_info_renewed)[1]){
+  write.csv(parking_info_summarized, paste('d:/github/r/visualization/final_proj/park_info.csv'))
+}
+
 ```
 
 ```{r}
-parking_info_summarized = parking_info[c(1:3, 7, 8, 21, 22, 24:27)]
-write.csv(parking_info_summarized, './final_proj/parking_info.csv')
-```
-
-```{r}
-PI = read.csv('./final_proj/parking_info.csv')
+PI = read.csv(paste('d:/github/r/visualization/final_proj/park_info.csv'))[,-1]
 ```
 
 ```{r}
@@ -79,7 +110,7 @@ RATE_HOUR = RATES+ADD_RATES*(60-TIME_RATE)/ADD_TIME_RATE
 RATE_HOUR[is.nan(RATE_HOUR)] = 0
 detach(PI)
 
-PI = cbind(PI[,-1],RATE_HOUR)
+PI = cbind(PI,RATE_HOUR)
 PI[is.na(RATE_HOUR),]
 ```
 
@@ -87,22 +118,22 @@ PI[is.na(RATE_HOUR),]
 인구정보 ref: http://stat.seoul.go.kr/octagonweb/jsp/WWS7/WWSDS7100.jsp
 ```{r}
 library(xlsx)
-population = read.xlsx2('./final_proj/population.xls', 1, encoding = 'utf-8')
+population = read.xlsx2('d:/github/r/visualization/final_proj/population_raw.xls', 1, encoding = 'utf-8')
 ```
 
 ```{r}
-pop_info = population[,2:5] %>% filter(동=='소계') %>% select(-동)
+pop_info = population[,2:5] %>% filter(동=='소계') %>% dplyr::select(-동)
 colnames(pop_info) = c('ADDR', 'HOUSEHOLD', 'POPULATION')
-write.csv(pop_info, './final_proj/Population_information.csv')
+write.csv(pop_info, 'd:/github/r/visualization/final_proj/Population_refined.csv')
 ```
 
 ```{r}
-population_info = read.csv('./final_proj/Population_information.csv')[-1]
+population_info = read.csv('d:/github/r/visualization/final_proj/Population_refined.csv')[-1]
 population_info
 ```
 
 ```{r}
-PI_by_ADDR = PI%>%group_by(ADDR)%>%select(CAPACITY,RATE_HOUR)%>%summarise(CAPA = sum(CAPACITY), RATE = as.integer(mean(RATE_HOUR[RATE_HOUR!=0])))
+PI_by_ADDR = PI%>%group_by(ADDR)%>%dplyr::select(CAPACITY,RATE_HOUR)%>%summarise(CAPA = sum(CAPACITY), RATE = as.integer(mean(RATE_HOUR[RATE_HOUR!=0])))
 ```
 
 ```{r}
@@ -116,11 +147,17 @@ info_by_ADDR %>% arrange(desc(CAPA_HOUSE)) %>% head(5)
 info_by_ADDR %>% arrange(desc(CAPA_HOUSE)) %>% tail(5)
 ```
 
+```{r}
+##### geocode
+cbind(info_by_ADDR, geocode(as.character(unique(info_by_ADDR$ADDR))))
+```
+
+
 
 차량정보 ref: http://stat.seoul.go.kr/octagonweb/jsp/WWS7/WWSDS7100.jsp
 ```{r}
 library(xlsx)
-vehicle = read.xlsx2('./final_proj/vehicle.xls', 1, encoding = 'utf-8')
+vehicle = read.xlsx2('d:/github/r/visualization/final_proj/vehicle.xls', 1, encoding = 'utf-8')
 ```
 
 ```{r}
@@ -136,20 +173,20 @@ left_join(info_by_ADDR,vehicle[1:2], by = 'ADDR')
 
 
 
+
 ```{r}
 library(ggmap)
 #library(ggplot2)
 SeoulMap = qmap("seoul", zoom = 11, scale = 4, maptype = "toner-lite", source= 'stamen', legend = "topleft", extent = 'device', size = c(1280,1280))
+```
 
+```{r}
+par(mfrow=c(1,2))
 SeoulMap + geom_point(aes(x = LNG, y = LAT,
-                            colour = RATE_HOUR, size = CAPACITY, alpha = 0.1),
+                            colour = RATE_HOUR, size = CAPACITY),
                             data = PI)
 
-SeoulMap + geom_point(aes(x = LNG, y = LAT,
-                            colour = RATE_HOUR, size = CAPACITY, alpha = 0.1),
-                            data = PI)+
-  geom_density2d(aes(x = LNG, y = LAT), size = 0.2 , bins = 4, 
-                   data = PI) +
+SeoulMap + geom_density2d(aes(x = LNG, y = LAT), size = 0.2 , bins = 4, data = PI) +
     stat_density2d(aes(x = LNG, y = LAT, fill = ..level.., alpha = ..level..), size = 2, bins = 4, data = PI, geom = 'polygon')
 ```
 
@@ -165,7 +202,8 @@ skorea = fortify(skorea)
 
 ```{r}
 ggplot() + geom_map(data= skorea, map= skorea,
-  aes(map_id=id,group=group),fill=NA, colour="black") +
+  aes(map_id=id,group=group),fill=NA
+  , colour="black") +
   geom_point(data=PI, aes(LNG, LAT, col = CAPACITY),alpha=0.7)
 
 #+ labs(title= "PM10 Concentration in Seoul Area at South Korea",

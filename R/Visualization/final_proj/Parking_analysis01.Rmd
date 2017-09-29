@@ -1,0 +1,328 @@
+
+목적
+
+서울시 주차대란이라는 이야기(배경)
+공용 주차장 시스템은 잘 갖춰져 있는지? (호기심)
+
+분석방법
+1. 서울시 공용 주차장 위치와 빈도
+  +@ 가격은?
+2. 구 별로 가구/인구대비 적절한지
+3. 가결론
+
+4. 검증
+5. 총 주차장 수
+6. 아파트 주차장 감안
+
+
+
+> **서울 시 공영 주차장 운영 현황 분석**
+
+#####**서울시 열린 데이터 광장의 open API를 활용하여 데이터를 집계하였고, 주소는 다음와 같습니다:**
+
+#####**http://data.seoul.go.kr/openinf/sheetview.jsp?infId=OA-13122&tMenu=11**
+
+#####**이하 데이터 수집/처리/시각화/분석 과정을 참조하여 주십시오.**
+
+1. 데이터 수집
+  + 필수 라이브러리 호출(httr, rvest, dplyr)
+```{r}
+library(httr)
+library(rvest)
+library(dplyr)
+```
+  
+  + 데이터 수입을 위한 데이터 프레임 생성 및 자료 업데이트를 위한 csv 파일 호출
+  
+--- 상기 API를 통해서는 최근 10,000번째 데이터까지만 호출 할 수 있음
+
+--- API의 출력값은 1개 노상주차장 내 모든 개별 주차공간의 좌표를 담고 있음
+
+--- 서울시 내 공영주차장 수는 666개로 추정하며, 중복값을 제외하고 총 666개의 obs.를 모을 때까지 반복적으로 업데이트가 필요 (1분 주기 업데이트)
+```{r}
+parking_info = data.frame()
+# 1회차 실행시에는 아래 코드 대신 비어있는 데이터 프레임 생성
+original_set = read.csv('d:/github/r/visualization/final_proj/park_info.csv')[,-1]
+# original_set = data.frame()
+```
+
+  + API 호출을 위한 key를 할당하고 반복문으로 크롤링을 수행하여 자료 축적
+```{r}
+key = '6b46504b456b6f6f313130734d624851'
+
+for (i in 0:9){
+  # 시작번호는 1번부터 9,001까지 1,000개 단위로 호출
+  start_num = i*1000+1                                                                 
+  url = paste0('http://openapi.seoul.go.kr:8088/',
+             key,
+             '/xml/SearchParkingInfo/',
+             start_num,
+             '/',
+             start_num+999)
+  url_xml = read_xml(GET(url))
+  # 노드명 row 기준으로 주차장 정보 필터
+  item_list = xml_nodes(url_xml, 'row')                                                
+  
+  item_list = lapply(item_list, function(x) return(xml_text(xml_children(x))))
+  item_dat = do.call('rbind',item_list)
+  item_dat = data.frame(item_dat, stringsAsFactors = F)
+
+  tmp = xml_nodes(url_xml, 'row') 
+  colnames_dat = html_name(xml_children(tmp[[1]]))
+  # 데이터 프레임화 및 열이름 부여
+  colnames(item_dat) = colnames_dat                                                    
+  
+  # 미리 만들어 둔 데이터프레임(parking_info)에 크롤링 데이터 추가
+  parking_info = rbind(parking_info ,item_dat)         
+  # PARKING_CODE 기준으로 중복 자료 삭제
+  parking_info = parking_info[!duplicated(parking_info$PARKING_CODE),]      
+  # 에러 체크
+  print(i)                                                                             
+}
+```
+
+  + 크롤링해온 자료 내 불필요한 정보를 제거하고(._summarized), 기존 정보와 비교하여 업데이트 진행(._renewed)
+  ---*처음에 불러온 'park_info.csv'파일은 총 666개의 주차장 정보 이후 추가되지 않는 것으로 보아, 아마 서울시 공영 주차장 개수는 666개일 것으로 추정*
+```{r}
+# 불필요한 정보 제거 (개장시간, 주차장 종류 등)
+parking_info_summarized = parking_info[c(1:3, 7, 8, 21, 22, 24:27)]
+# 기존에 크롤링한 자료와 비교하여 업데이트 진행
+parking_info_renewed = rbind(parking_info_summarized, original_set)
+parking_info_renewed = parking_info_summarized[!duplicated(parking_info_summarized$PARKING_CODE),]
+# 데이터가 추가 되었을 시 파일로 저장
+if (dim(original_set)[1] < dim(parking_info_renewed)[1]){
+  write.csv(parking_info_renewed, 'd:/github/r/visualization/final_proj/park_info.csv')
+}
+```
+
+2. 데이터 전처리
+  + 업데이트한 주차장 정보를 재호출 후 분석을 위해 전처리 수행
+```{r}
+# 데이터 재 호출 (factor > numeric)
+PI = read.csv('d:/github/r/visualization/final_proj/park_info.csv')[,-1]
+```
+  
+  + 주소 정보를 구 단위로 분류
+```{r}
+# 주차장 주소를 구 단위로 분류하고 factor로 변환
+PI$ADDR = as.factor(gsub('구 [가-힣0-9a-zA-Z ()~-]*', '구', PI$ADDR))
+```
+
+  + 주차 비용 표준화 (시간 당 주차료)
+```{r}
+# 1. 시간당 주차료 산정 이전에 비어있는 값 배정
+tmp = PI %>% filter(PAY_NM=='유료') %>% filter(ADD_RATES==0)
+tmp$ADD_RATES = tmp$RATES
+tmp$ADD_TIME_RATE = tmp$TIME_RATE
+PI = rbind(tmp,PI)
+PI = PI[!duplicated(PI$PARKING_CODE),]
+
+# 2. 1번 조치에도 누락되어있는 데이터 수기로 추가 http://parking.seoul.go.kr/web/MapMain.aspx
+PI[PI$PARKING_CODE%in%c(173141, 171802),]$ADD_RATES = PI[PI$PARKING_CODE%in%c(173141, 171802),]$RATES
+PI[PI$PARKING_CODE%in%c(173141, 171802),]$ADD_TIME_RATE = PI[PI$PARKING_CODE%in%c(173141, 171802),]$TIME_RATE
+PI[PI$PARKING_CODE==1010089,]$TIME_RATE = 0
+
+# 3. 시간당 주차료를 계산하고, 무료주차장인 경우(is.nan)에는 0을 기입
+attach(PI)
+RATE_HOUR = RATES+ADD_RATES*(60-TIME_RATE)/ADD_TIME_RATE
+RATE_HOUR[is.nan(RATE_HOUR)] = 0
+detach(PI)
+
+# 4. data.frame에 병합
+PI = cbind(PI,RATE_HOUR)
+PI = PI[,c(-5, -8:-11)]
+```
+
+3. 탐색석 자료분석 기반으로 시각화
+  + ggmap 활용 서울 데이터 변수호
+```{r}
+library(ggmap)
+library(RColorBrewer)
+# 서울 기준 open street map 호출
+SeoulMap = qmap("seoul", zoom = 11, scale = 4, maptype = "toner-lite", source= 'stamen', legend = "topleft", extent = 'device', size = c(1280,1280))
+```
+
+  + 서울 공영주차장 수용대수/가격 기준으로 시각화
+```{r}
+SeoulMap +
+  geom_point(aes(x = LNG, y = LAT, color = RATE_HOUR, size = CAPACITY), data = PI) + 
+  theme(legend.title=element_text(size=8), legend.text = element_text(size = 7)) +
+  scale_colour_gradientn(colours = brewer.pal(6, "OrRd")) + 
+  labs(size = '수용대수', colour = '주차료') +
+  geom_text(data=info_by_ADDR, mapping=aes(x=lon, y=lat, label=ADDR), size=3) +
+  coord_equal()
+```
+
+  + 서울 공영주차장 분포 시각화
+```{r}
+SeoulMap +
+  geom_point(aes(x = LNG, y = LAT, color = RATE_HOUR, size = CAPACITY), data = PI) + 
+  geom_density2d(aes(x = LNG, y = LAT, alpha = 0), bins = 6, data = PI) +
+  stat_density2d(aes(x = LNG, y = LAT, fill = ..level.., alpha = ..level..), data = PI, geom = 'polygon') + 
+  theme(legend.title=element_text(size=8), legend.text = element_text(size = 7)) +
+  scale_colour_gradientn(colours = brewer.pal(6, "OrRd")) +
+  labs(size = '수용대수', colour = '주차료', fill = '분포') + 
+  scale_alpha(guide = 'none') +
+  geom_text(data=info_by_ADDR, mapping=aes(x=lon, y=lat, label=ADDR), size=3) +
+  coord_equal()
+
+```
+
+**4. 가결론 (분석)**
+  **+ 공공성 측면에서 공영주차장의 분포는 어느 정도 고르게 퍼져 있을 것이라 가정했었했지만, 오히려 일부 지역(영등포구, 중구)에 집중되어 있음을 알 수 있음**
+  **+ 공영주차장의 주차료 수준과 공영주차장의 밀집도는 유사한 모습을 보임**
+  **+ 지역구 별로 상기 현상을 설명할 수 있는 추가 정보를 수집/분석이 필요할 것으로 보임**
+
+
+> **서울 지역구 별 인구 데이터 취합**
+
+#####**서울 통계 사이트에서 동 별 주민등록 인구 자료를 수집하였고, 주소는 다음와 같습니다:**
+
+#####**http://stat.seoul.go.kr/octagonweb/jsp/WWS7/WWSDS7100.jsp?re_stc_cd=10043&re_lang=kor**
+
+#####**이하 데이터 수집/처리/시각화/분석 과정을 참조하여 주십시오.**
+
+1. 데이터 수집
+  + 데이터는 상기 사이트에서 xls 형식으로 다운 받음 (API 미지원)
+```{r}
+library(xlsx)
+population = read.xlsx2('d:/github/r/visualization/final_proj/population_raw.xls', 1, encoding = 'utf-8', stringsAsFactors = F)
+```
+
+2. 데이터 전처리
+  + 지역구 단위 소계자료를 필터링 하였고, '세대'와, '인구 합계' 자료만 수집
+```{r}
+pop_info = population[,2:5] %>% filter(동=='소계') %>% dplyr::select(-동)
+colnames(pop_info) = c('ADDR', 'HOUSEHOLD', 'POPULATION')
+for (i in 2:3)pop_info[,i] = as.numeric(pop_info[,i])
+write.csv(pop_info, 'd:/github/r/visualization/final_proj/Population_refined.csv')
+```
+
+  + 서울시 공영주차장 정보를 지역구 단위로 요약 (수용대수:합계, 주차료:유료주차장평균)
+```{r}
+PI_by_ADDR = PI%>%dplyr::group_by(ADDR)%>%dplyr::select(CAPACITY,RATE_HOUR)%>%summarise(CAPA = sum(CAPACITY), RATE = as.integer(mean(RATE_HOUR[RATE_HOUR!=0])))
+```
+
+  + 신규 변수 생성하여 하나의 데이터프레임으로 합침 (가구장 수용대수, 인구당 수용대수)
+```{r}
+info_by_ADDR = left_join(PI_by_ADDR, pop_info, by = 'ADDR')
+info_by_ADDR = info_by_ADDR %>% mutate(CAPA_HOUSE = CAPA/HOUSEHOLD, CAPA_POP = CAPA/POPULATION)
+
+```
+  
+  
+  + 시각화 작업을 위해 지역구 별 지리정보 수집
+```{r}
+info_by_ADDR = cbind(info_by_ADDR, geocode(as.character(unique(info_by_ADDR$ADDR))))
+info_by_ADDR
+```
+
+3. 탐색석 자료분석 기반으로 시각화
+  + 서울 공영주차장 수용대수/가격 기준으로 시각화
+```{r}
+library(ggplot2)
+library(scatterpie)
+
+info_by_ADDR$radius = info_by_ADDR$CAPA_HOUSE/2
+
+SeoulMap +
+  geom_density2d(aes(x = LNG, y = LAT, alpha = 0), bins = 6, data = PI) +
+  stat_density2d(aes(x = LNG, y = LAT, fill = ..level.., alpha = ..level..), data = PI, geom = 'polygon') + 
+  theme(legend.title=element_text(size=8), legend.text = element_text(size = 7)) +
+  geom_scatterpie(aes(x = lon, y = lat, r= radius), data = info_by_ADDR, cols = 'CAPA_HOUSE', alpha = .8, color = NA, fill = 'lightsalmon') + coord_equal() +
+  geom_text(data=info_by_ADDR, mapping=aes(x=lon, y=lat, label=ADDR), size=3) + 
+  labs(fill = '분포') + 
+  scale_alpha(guide = 'none') +
+  geom_text(data=info_by_ADDR, mapping=aes(x=lon, y=lat, label=ADDR), size=3) +
+  coord_equal()
+
+
+geom_point(aes(x = LNG, y = LAT, color = RATE_HOUR, size = CAPACITY), data = PI) + 
+  theme(legend.title=element_text(size=8), legend.text = element_text(size = 7)) +
+  scale_colour_gradientn(colours = brewer.pal(6, "OrRd")) + 
+  
+```
+
+
+```{r}
+#pie chart on map
+library(ggplot2)
+library(scatterpie)
+
+info_by_ADDR$radius =   info_by_ADDR$CAPA_HOUSE/2
+SeoulMap +
+  geom_scatterpie(aes(x = lon, y = lat, r= radius), data = info_by_ADDR, cols = 'CAPA_HOUSE', alpha = .8, color = 'NA', fill = 'green') + coord_equal() +
+  #geom_scatterpie_legend(info_by_ADDR$radius, x = 127.0473, y = 37.51724)+ 
+  geom_text(data=info_by_ADDR, mapping=aes(x=lon, y=lat, label=ADDR), size=3)
+
+(z=c(1,4,6),labels = c('a','b','c'), 
+        x = info_by_ADDR[1,8], y = info_by_ADDR[1,9], radius = 0.8)
+```
+
+```{r}
+info_by_ADDR %>% arrange(desc(POPULATION)) %>% head(10)
+info_by_ADDR %>% arrange(desc(POPULATION)) %>% tail(10)
+```
+
+```{r}
+##### geocode
+cbind(info_by_ADDR, geocode(as.character(unique(info_by_ADDR$ADDR))))
+```
+
+
+
+차량정보 ref: http://stat.seoul.go.kr/octagonweb/jsp/WWS7/WWSDS7100.jsp
+```{r}
+library(xlsx)
+vehicle = read.xlsx2('d:/github/r/visualization/final_proj/vehicle.xls', 1, encoding = 'utf-8')
+```
+
+```{r}
+vehicle = vehicle[c(-1,-2),c(2:4,8)]
+colnames(vehicle) = c('ADDR', 'REGISTERED','CAPACITY', 'RATIO')
+left_join(info_by_ADDR,vehicle[1:2], by = 'ADDR')
+```
+
+
+
+
+
+
+
+
+
+```{r}
+library(ggmap)
+#library(ggplot2)
+SeoulMap = qmap("seoul", zoom = 11, scale = 4, maptype = "toner-lite", source= 'stamen', legend = "topleft", extent = 'device', size = c(1280,1280))
+```
+
+```{r}
+par(mfrow=c(1,2))
+SeoulMap + geom_point(aes(x = LNG, y = LAT,
+                            colour = RATE_HOUR, size = CAPACITY),
+                            data = PI)
+
+SeoulMap + geom_density2d(aes(x = LNG, y = LAT), size = 0.2 , bins = 4, data = PI) +
+    stat_density2d(aes(x = LNG, y = LAT, fill = ..level.., alpha = ..level..), size = 2, bins = 4, data = PI, geom = 'polygon')
+```
+
+```{r}
+library(raster)
+skorea <- getData(name ="GADM", country= "KOR", level=2)
+head(skorea,2)
+```
+
+```{r}
+skorea = fortify(skorea)
+```
+
+```{r}
+ggplot() + geom_map(data= skorea, map= skorea,
+  aes(map_id=id,group=group),fill=NA
+  , colour="black") +
+  geom_point(data=PI, aes(LNG, LAT, col = CAPACITY),alpha=0.7)
+
+#+ labs(title= "PM10 Concentration in Seoul Area at South Korea",
+#       x="Longitude", y= "Latitude", size="PM10(microgm/m3)")
+```
