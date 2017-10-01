@@ -1,0 +1,440 @@
+---
+title: "Distribtion of public parking spaces in Seoul"
+date: 'Sept. 30th, 2017'
+author: 'Park, Pablo Chanwoo'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+ 
+
+> **Executive summary**
+
+###서울시 내 공영주차장 분포 분석을 통해 도출한 insight는 다음과 같습니다.
+
+####1. 공영주차장은 거주민들의 주거주차 편의를 위해서라기 보다는, 시민들의 자가차량 이동 간 편의제공에 그 목적이 있다고 보임
+
+####2. 공영주차장은 주로 임대료가 높고 유동인구가 많은 지역에 집중 분포되어 있는것으로 보이며, 분포와 주차비 사이에는 양의 상관관계가 있음
+
+####3. 향후에도 공영주차장은 분포가 높은 지역에 집중될 것으로 보이나, 추가적인 정보 수집과 분석이 있어야 보다 구체적인 insight 도출이 가능할 것
+
+
+> **조사 목적**
+
+#### **배경**
+
+주차대란이라는 이야기를 심심치 않게 들을 수 있습니다.
+저 역시도 자가차량 구입 이후 삶의 편의성이 많이 개선되었지만, 반대로 주차 문제로 스트레스를 겪는 경우도 심심찮게 마주하게 됩니다.
+당장 서울대에서도 주차공간 부족으로 인해 남들보다 1~2시간 일찍 등교를 하는 자구책을 마련하는 등 자가차량 이용 시 주차에 대한 고민을 항상 하게 됩니다.
+
+이에 서울시에서 운영하는 공영주차장의 위치, 분포 및 가격 정보를 조사하고, 과연 적절한 서비스가 제공되고 있는지 궁금증을 해결해 보고자 합니다.
+필요 시 이종데이터와 결합하여 분석도 진행 할 예정이나, 이에 대한 구체적인 해결책을 논하지는 않을 예정입니다.
+
+
+#### **분석 절차**
+
+1. 서울시 열린 데이터 광장의 open API를 활용
+  + 서울시 주차정보안내시스템을 통해 약 666개의 서울시 공영주차장 데이터를 추출
+  + 전처리를 거친 후 ggmap을 활용하여 분포와 가격수준 시각화
+
+2. 서울시 통계 사이트로부터 이종데이터 수집
+  + 수집할 데이터는 지역구 별 인구/가구수 데이터, 민간주차장, 차량등록대수 등
+  + 마찬가지로 ggmap을 활용하여, 지역구 단위 신규변수를 생성 및 비교
+
+3. 상기 자료를 토대로 insight 도출 시도
+
+> **서울 시 공영 주차장 운영 현황 분석**
+
+#####**서울시 열린 데이터 광장의 open API를 활용하여 데이터를 집계하였고, 주소는 다음와 같습니다:**
+
+##### http://data.seoul.go.kr/openinf/sheetview.jsp?infId=OA-13122&tMenu=11
+
+#####**이하 데이터 수집/처리/시각화/분석 과정을 참조하여 주십시오.**
+
+1. 데이터 수집
+  + 필수 라이브러리 호출(httr, rvest, dplyr)
+```{r message=FALSE,  warning=FALSE}
+library(httr)
+library(rvest)
+library(dplyr)
+```
+  
+  + 데이터 수입을 위한 데이터 프레임 생성 및 자료 업데이트를 위한 csv 파일 호출
+  
+--- 상기 API를 통해서는 최근 10,000번째 데이터까지만 호출 할 수 있음
+
+--- API의 출력값은 1개 노상주차장 내 모든 개별 주차공간의 좌표를 담고 있음
+
+--- 서울시 공영주차장 수는 666개로 추정하며, 중복값을 제외하고 총 666개의 obs.를 모을 때까지 반복적으로 업데이트 (1분 주기 업데이트)
+```{r message=FALSE,  warning=FALSE}
+parking_info = data.frame()
+# 1회차 실행시에는 아래 코드 대신 비어있는 데이터 프레임 생성
+original_set = read.csv('d:/github/r/visualization/final_proj/park_info.csv')[,-1]
+# original_set = data.frame()
+```
+
+  + API 호출을 위한 key를 할당하고 반복문으로 크롤링을 수행하여 자료 축적
+```{r message=FALSE,  warning=FALSE}
+key = '6b46504b456b6f6f313130734d624851'
+
+for (i in 0:9){
+  # 시작번호는 1번부터 9,001까지 1,000개 단위로 호출
+  start_num = i*1000+1                                                                 
+  url = paste0('http://openapi.seoul.go.kr:8088/',
+             key,
+             '/xml/SearchParkingInfo/',
+             start_num,
+             '/',
+             start_num+999)
+  url_xml = read_xml(GET(url))
+  # 노드명 row 기준으로 주차장 정보 필터
+  item_list = xml_nodes(url_xml, 'row')                                                
+  
+  item_list = lapply(item_list, function(x) return(xml_text(xml_children(x))))
+  item_dat = do.call('rbind',item_list)
+  item_dat = data.frame(item_dat, stringsAsFactors = F)
+
+  tmp = xml_nodes(url_xml, 'row') 
+  colnames_dat = html_name(xml_children(tmp[[1]]))
+  # 데이터 프레임화 및 열이름 부여
+  colnames(item_dat) = colnames_dat                                                    
+  
+  # 미리 만들어 둔 데이터프레임(parking_info)에 크롤링 데이터 추가
+  parking_info = rbind(parking_info ,item_dat)         
+  # PARKING_CODE 기준으로 중복 자료 삭제
+  parking_info = parking_info[!duplicated(parking_info$PARKING_CODE),]      
+  # 에러 체크
+  #print(i)                                                                             
+}
+```
+
+  + 크롤링해온 자료 내 불필요한 정보를 제거하고(._summarized), 기존 정보와 비교하여 업데이트 진행(._renewed)
+  
+  ---*처음에 불러온 'park_info.csv'파일은 666개의 주차장 정보 수집 후 숫자가 늘지 않아, 총 공영 주차장 개수는 666개일 것으로 추정*
+```{r message=FALSE,  warning=FALSE}
+# 불필요한 정보 제거 (개장시간, 주차장 종류 등)
+parking_info_summarized = parking_info[c(1:3, 7, 8, 21, 22, 24:27)]
+# 기존에 크롤링한 자료와 비교하여 업데이트 진행
+parking_info_renewed = rbind(parking_info_summarized, original_set)
+parking_info_renewed = parking_info_summarized[!duplicated(parking_info_summarized$PARKING_CODE),]
+# 데이터가 추가 되었을 시 파일로 저장
+if (dim(original_set)[1] < dim(parking_info_renewed)[1]){
+  write.csv(parking_info_renewed, 'd:/github/r/visualization/final_proj/park_info.csv')
+}
+```
+
+2. 데이터 전처리
+  + 업데이트한 주차장 정보를 재호출 후 분석을 위해 전처리 수행
+```{r message=FALSE,  warning=FALSE}
+# 데이터 재 호출 (factor > numeric)
+PI = read.csv('d:/github/r/visualization/final_proj/park_info.csv')[,-1]
+```
+  
+  + 주소 정보를 구 단위로 분류
+```{r message=FALSE,  warning=FALSE}
+# 주차장 주소를 구 단위로 분류하고 factor로 변환
+PI$ADDR = as.factor(gsub('구 [가-힣0-9a-zA-Z ()~-]*', '구', PI$ADDR))
+```
+
+  + 주차 비용 표준화 (시간 당 주차료)
+```{r message=FALSE,  warning=FALSE}
+# 1. 시간당 주차료 산정 이전에 비어있는 값 배정
+tmp = PI %>% filter(PAY_NM=='유료') %>% filter(ADD_RATES==0)
+tmp$ADD_RATES = tmp$RATES
+tmp$ADD_TIME_RATE = tmp$TIME_RATE
+PI = rbind(tmp,PI)
+PI = PI[!duplicated(PI$PARKING_CODE),]
+
+# 2. 1번 조치에도 누락되어있는 데이터 수기로 추가 http://parking.seoul.go.kr/web/MapMain.aspx
+PI[PI$PARKING_CODE%in%c(173141, 171802),]$ADD_RATES = PI[PI$PARKING_CODE%in%c(173141, 171802),]$RATES
+PI[PI$PARKING_CODE%in%c(173141, 171802),]$ADD_TIME_RATE = PI[PI$PARKING_CODE%in%c(173141, 171802),]$TIME_RATE
+PI[PI$PARKING_CODE==1010089,]$TIME_RATE = 0
+
+# 3. 시간당 주차료를 계산하고, 무료주차장인 경우(is.nan)에는 0을 기입
+attach(PI)
+RATE_HOUR = RATES+ADD_RATES*(60-TIME_RATE)/ADD_TIME_RATE
+RATE_HOUR[is.nan(RATE_HOUR)] = 0
+detach(PI)
+
+# 4. data.frame에 병합
+PI = cbind(PI,RATE_HOUR)
+PI = PI[,c(-5, -8:-11)]
+```
+
+3. 탐색석 자료분석 기반으로 시각화
+  + ggmap 활용 서울 데이터 변수호
+```{r message=FALSE,  warning=FALSE}
+library(ggmap)
+library(RColorBrewer)
+# 서울 기준 open street map 호출
+SeoulMap = qmap("seoul", zoom = 11, scale = 4, maptype = "toner-lite", source= 'stamen', legend = "topleft", extent = 'device', size = c(1280,1280))
+```
+
+  + 서울 공영주차장 수용대수/가격 기준으로 시각화
+```{r message=FALSE,  warning=FALSE}
+map1 = SeoulMap +
+  geom_point(aes(x = LNG, y = LAT, color = RATE_HOUR, size = CAPACITY), data = PI) + 
+  theme(legend.title=element_text(size=8), legend.text = element_text(size = 7)) +
+  scale_colour_gradientn(colours = brewer.pal(6, "OrRd")) + 
+  labs(size = '수용대수', colour = '주차료') +
+  coord_equal()
+
+map1
+```
+
+  + 서울 공영주차장 분포 시각화
+```{r message=FALSE,  warning=FALSE}
+map2 = SeoulMap +
+  geom_point(aes(x = LNG, y = LAT, color = RATE_HOUR, size = CAPACITY), data = PI) + 
+  geom_density2d(aes(x = LNG, y = LAT, alpha = 0), bins = 6, data = PI) +
+  stat_density2d(aes(x = LNG, y = LAT, fill = ..level.., alpha = ..level..), data = PI, geom = 'polygon') + 
+  theme(legend.title=element_text(size=8), legend.text = element_text(size = 7)) +
+  scale_colour_gradientn(colours = brewer.pal(6, "OrRd")) +
+  labs(size = '수용대수', colour = '주차료', fill = '분포') + 
+  scale_alpha(guide = 'none') +
+  coord_equal()
+
+map2
+```
+
+4. **가결론 (분석)**
+  + 공공성 측면에서 공영주차장의 분포는 어느 정도 고르게 퍼져 있을 것이라 가정했었했지만, 오히려 일부 지역(영등포구, 중구)에 집중되어 있음을 알 수 있음
+  + 공영주차장의 주차료 수준과 공영주차장의 밀집도는 유사한 모습을 보임
+  + 지역구 별로 상기 현상을 설명할 수 있는 추가 정보를 수집/분석이 필요할 것으로 보임
+
+
+> **서울 지역구 별 인구 데이터 취합**
+
+#####**서울 통계 사이트에서 동 별 주민등록 인구 자료를 수집하였고, 주소는 다음와 같습니다:**
+
+##### http://stat.seoul.go.kr/octagonweb/jsp/WWS7/WWSDS7100.jsp?re_stc_cd=10043&re_lang=kor
+
+#####**이하 데이터 수집/처리/시각화/분석 과정을 참조하여 주십시오.**
+
+1. 데이터 수집
+  + 데이터는 상기 사이트에서 xls 형식으로 다운 받음 (API 미지원)
+```{r message=FALSE,  warning=FALSE}
+library(xlsx)
+population = read.xlsx2('d:/github/r/visualization/final_proj/population_raw.xls', 1, encoding = 'utf-8', stringsAsFactors = F)
+```
+
+2. 데이터 전처리
+  + 지역구 단위 소계자료를 필터링 하였고, '세대'와, '인구 합계' 자료만 수집
+```{r message=FALSE,  warning=FALSE}
+pop_info = population[,2:5] %>% filter(동=='소계') %>% dplyr::select(-동)
+colnames(pop_info) = c('ADDR', 'HOUSEHOLD', 'POPULATION')
+for (i in 2:3)pop_info[,i] = as.numeric(pop_info[,i])
+write.csv(pop_info, 'd:/github/r/visualization/final_proj/Population_refined.csv')
+```
+
+  + 서울시 공영주차장 정보를 지역구 단위로 요약 (수용대수:합계, 주차료:유료주차장평균)
+```{r message=FALSE,  warning=FALSE}
+PI_by_ADDR = PI%>%dplyr::group_by(ADDR)%>%dplyr::select(CAPACITY,RATE_HOUR)%>%summarise(CAPA = sum(CAPACITY), RATE = as.integer(mean(RATE_HOUR[RATE_HOUR!=0])))
+```
+
+  + 신규 변수 생성하여 하나의 데이터프레임으로 합침 (가구장 수용대수, 인구당 수용대수)
+```{r message=FALSE,  warning=FALSE}
+info_by_ADDR = left_join(PI_by_ADDR, pop_info, by = 'ADDR')
+info_by_ADDR = info_by_ADDR %>% mutate(CAPA_HOUSE = CAPA/HOUSEHOLD, CAPA_POP = CAPA/POPULATION)
+
+```
+  
+  + 시각화 작업을 위해 지역구 별 지리정보 수집
+```{r message=FALSE,  warning=FALSE}
+info_by_ADDR = cbind(info_by_ADDR, geocode(info_by_ADDR$ADDR))
+#info_by_ADDR = read.csv('d:/github/r/visualization/final_proj/info_by_ADDR.csv', stringsAsFactors = F)[,-1]
+info_by_ADDR
+```
+  
+*※지역구 별 주차가능대수와, 주차비 사이에는 양의 상관관계 존재*
+```{r message=FALSE,  warning=FALSE}
+cor(info_by_ADDR$CAPA, info_by_ADDR$RATE)
+```
+
+3. 탐색석 자료분석 기반으로 시각화
+  + 지역구 단위 서울 공영주차장 분포수준
+```{r message=FALSE,  warning=FALSE}
+
+color_variable = rep(2,length(info_by_ADDR$ADDR))
+color_variable[info_by_ADDR$ADDR %in% (info_by_ADDR[,c(1,2)] %>% arrange(desc(CAPA)) %>% .[1:5,1])] = 1
+color_variable[info_by_ADDR$ADDR %in% (info_by_ADDR[,c(1,2)] %>% arrange(desc(CAPA)) %>% .[21:25,1])] = 3
+
+map3 = SeoulMap +
+  geom_point(aes(x = lon, y = lat, colour = as.character(color_variable), size = CAPA), data = info_by_ADDR) + 
+  theme(legend.title=element_text(size=8), legend.text = element_text(size = 7)) +
+  scale_colour_manual(values = c(brewer.pal(3,'Pastel1')), labels = c('상위5','중간','하위5')) + 
+  scale_size(range=c(1,20)) +
+  geom_text(data=info_by_ADDR, mapping=aes(x=lon, y=lat, label=ADDR), size=3) + 
+  guides(size = FALSE, color = guide_legend('상위/하위 5')) +
+  coord_equal()
+
+map3
+```
+```{r message=FALSE,  warning=FALSE}
+info_by_ADDR[,c(1,2)] %>% arrange(desc(CAPA)) %>% .[c(1:5, 21:25),]
+```
+
+
+  + 가구 수 대비 공영주차장 분포수준
+```{r message=FALSE,  warning=FALSE}
+color_variable = rep(2,length(info_by_ADDR$ADDR))
+color_variable[info_by_ADDR$ADDR %in% (info_by_ADDR[,c(1,6)] %>% arrange(desc(CAPA_HOUSE)) %>% .[1:5,1])] = 1
+color_variable[info_by_ADDR$ADDR %in% (info_by_ADDR[,c(1,6)] %>% arrange(desc(CAPA_HOUSE)) %>% .[21:25,1])] = 3
+
+
+map4 = SeoulMap +
+  geom_point(aes(x = lon, y = lat, colour = as.character(color_variable), size = CAPA_HOUSE), data = info_by_ADDR) + 
+  theme(legend.title=element_text(size=8), legend.text = element_text(size = 7)) +
+  scale_colour_manual(values = c(brewer.pal(3,'Pastel1')), labels = c('상위5','중간','하위5')) + 
+  scale_size(range=c(1,20)) +
+  geom_text(data=info_by_ADDR, mapping=aes(x=lon, y=lat, label=ADDR), size=3) + 
+  guides(size = FALSE, color = guide_legend('상위/하위 5')) +
+  coord_equal()
+
+map4
+```
+```{r message=FALSE,  warning=FALSE}
+info_by_ADDR[,c(1,6)] %>% arrange(desc(CAPA_HOUSE)) %>% .[c(1:5, 21:25),]
+```
+
+
+
+  + 인구 수 대비 공영주차장 분포수준
+```{r message=FALSE,  warning=FALSE}
+color_variable = rep(2,length(info_by_ADDR$ADDR))
+color_variable[info_by_ADDR$ADDR %in% (info_by_ADDR[,c(1,7)] %>% arrange(desc(CAPA_POP)) %>% .[1:5,1])] = 1
+color_variable[info_by_ADDR$ADDR %in% (info_by_ADDR[,c(1,7)] %>% arrange(desc(CAPA_POP)) %>% .[21:25,1])] = 3
+
+
+map5 = SeoulMap +
+  geom_point(aes(x = lon, y = lat, colour = as.character(color_variable), size = CAPA_POP), data = info_by_ADDR) + 
+  theme(legend.title=element_text(size=8), legend.text = element_text(size = 7)) +
+  scale_colour_manual(values = c(brewer.pal(3,'Pastel1')), labels = c('상위5','중간','하위5')) + 
+  scale_size(range=c(1,20)) +
+  geom_text(data=info_by_ADDR, mapping=aes(x=lon, y=lat, label=ADDR), size=3) + 
+  guides(size = FALSE, color = guide_legend('상위/하위 5')) +
+  coord_equal()
+
+map5
+```
+```{r message=FALSE,  warning=FALSE}
+info_by_ADDR[,c(1,7)] %>% arrange(desc(CAPA_POP)) %>% .[c(1:5, 21:25),]
+```
+4. **가결론 (분석)**
+  + 공영주차장의 밀집도가 높은 지역이 대체로 인구밀도가 높을 것이라 판단하여, 가구수 내지 인구 당 공영주차장 수는 다른 형태를 보여줄 것이라 예상하였으나, 크게 다르지 않은 모습을 보임
+  + 지역구 별 총 주차장 수와 비례하여 통계치 비교가 의미 있을 것이라 판단하여 추가 분석 시행
+
+
+> **서울 지역구 별 주차장 데이터 취합**
+
+#####**서울 통계 사이트에서 동 별 주차장 자료를 수집하였고, 주소는 다음와 같습니다:**
+
+##### http://stat.seoul.go.kr/octagonweb/jsp/WWS7/WWSDS7100.jsp?re_stc_cd=254&re_lang=kor
+
+#####**이하 데이터 수집/처리/시각화/분석 과정을 참조하여 주십시오.**
+
+
+
+1. 데이터 수집
+  + 데이터는 상기 사이트에서 xls 형식으로 다운 받음 (API 미지원)
+```{r message=FALSE,  warning=FALSE}
+library(xlsx)
+vehicle = read.xlsx2('d:/github/r/visualization/final_proj/vehicle.xls', 1, encoding = 'utf-8', stringsAsFactors = FALSE)
+```
+
+2. 데이터 전처리
+  + 지역구 단위로 '자가용'과 '주택가주차장' 자료만 수집하여 기존 자료와 병합
+```{r message=FALSE,  warning=FALSE}
+vehicle = vehicle[c(-1,-2),c(2:4)]
+colnames(vehicle) = c('ADDR', 'vehicle', 'PARK')
+info_by_ADDR = left_join(info_by_ADDR,vehicle, by = 'ADDR')
+for (i in 10:11) info_by_ADDR[,i] = as.integer(info_by_ADDR[,i])
+```
+  + 비교를 위해 신규 변수 '자가용 당 공영주차장 CAPA'와 '공영주차장비율' 생성
+```{r message=FALSE,  warning=FALSE}
+info_by_ADDR = mutate(info_by_ADDR, CAPA_car = CAPA/vehicle, Public_PARK = CAPA/PARK)
+```
+
+3. 탐색석 자료분석 기반으로 시각화
+  + '자가용 당 공영주차장CAPA' 순위 별 지역구 비교
+```{r message=FALSE,  warning=FALSE}
+color_variable = rep(2,length(info_by_ADDR$ADDR))
+color_variable[info_by_ADDR$ADDR %in% (info_by_ADDR[,c(1,12)] %>% arrange(desc(CAPA_car)) %>% .[1:5,1])] = 1
+color_variable[info_by_ADDR$ADDR %in% (info_by_ADDR[,c(1,12)] %>% arrange(desc(CAPA_car)) %>% .[21:25,1])] = 3
+
+
+map6 = SeoulMap +
+  geom_point(aes(x = lon, y = lat, colour = as.character(color_variable), size = CAPA_car), data = info_by_ADDR) + 
+  theme(legend.title=element_text(size=8), legend.text = element_text(size = 7)) +
+  scale_colour_manual(values = c(brewer.pal(3,'Pastel1')), labels = c('상위5','중간','하위5')) + 
+  scale_size(range=c(1,20)) +
+  geom_text(data=info_by_ADDR, mapping=aes(x=lon, y=lat, label=ADDR), size=3) + 
+  guides(size = FALSE, color = guide_legend('상위/하위 5')) +
+  coord_equal()
+
+map6
+```
+```{r message=FALSE,  warning=FALSE}
+info_by_ADDR[,c(1,12)] %>% arrange(desc(CAPA_car)) %>% .[c(1:5, 21:25),]
+```
+  + 지역구 별 공영주차장 비율 비교
+```{r message=FALSE,  warning=FALSE}
+
+library(scatterpie)
+
+info_by_ADDR$radius = info_by_ADDR$Public_PARK/3
+info_by_ADDR = mutate(info_by_ADDR, private_park = PARK-CAPA)
+write.csv(info_by_ADDR, 'd:/github/r/visualization/final_proj/info_by_ADDR.csv')
+
+map7 = SeoulMap +
+  geom_scatterpie(aes(x = lon, y = lat, r= radius), data = info_by_ADDR, cols = c('CAPA','private_park'), alpha = .7, color = NA) + 
+  geom_text(data=info_by_ADDR, mapping=aes(x=lon, y=lat, label=ADDR), size=3) + 
+  coord_equal()
+
+map7
+```
+```{r message=FALSE,  warning=FALSE}
+info_by_ADDR[,c(1,13)] %>% arrange(desc(Public_PARK)) %>% .[c(1:5, 21:25),]
+```
+4. **가결론 (분석)**
+  + 지역구 별 공영주차장의 밀집도는 주거환경과 관련된 변수들(가구수, 인구, 자가용 수, 외 주택주차장)과 직접적인 연관성을 찾기 어려움
+  + 오히려 시각적 분석 결과 유동인구가 많고 임대료가 높은 지역에 공영주차장 비율뿐 아니라 실제 주차가능 공간도 더 많이 배정되있는 것을 발견할 수 있음
+  + 공영주차장의 목적은 주거주차장의 보조 역할이 아니라, 시민들의 이동 간 편의 제공을 위함이라고 볼 수도 있음
+  + 이를 검증하기 위해서 유동인구 및 임대료 등의 자료 수집과 분석이 필요 할 것 
+  
+  
+> SHINY 활용 시각화
+
+상단의 map 자료 Shiny에 적용
+```{r message=FALSE,  warning=FALSE}
+library(shiny)
+
+map_list = c('주차장분포', '주차장분포+heatmap','지역구 단위 분포도','가구수 대비 분포도','인구수 대비 분포도','등록 자가용 대비 분포도','전체 주차장 대비 공영주차장 비유')
+
+ui = fluidPage(
+  headerPanel('서울시내 공영주차장 분포도'),
+  sidebarPanel(selectInput('maptype', '분포도', map_list )),
+  mainPanel(
+    plotOutput('map')
+  )
+)
+
+server = function(input, output)
+{
+  output$map <- renderPlot({
+    if(input$maptype =='주차장분포') map1
+    else if (input$maptype =='주차장분포+heatmap') map2
+    else if (input$maptype =='지역구 단위 분포도') map3
+    else if (input$maptype =='가구수 대비 분포도') map4
+    else if (input$maptype =='인구수 대비 분포도') map5
+    else if (input$maptype =='등록 자가용 대비 분포도') map6
+    else map7
+  })
+}
+
+shinyApp(ui = ui, server= server)
+```

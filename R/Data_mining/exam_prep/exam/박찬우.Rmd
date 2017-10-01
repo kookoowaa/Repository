@@ -1,0 +1,304 @@
+---
+title: "Data Mining 기말고사"
+author: "박찬우"
+date: "2017년 9월 30일"
+output: html_document
+---
+
+```{r eval=F, echo=F}
+#작업폴더
+setwd('D:/Github/R/Data_mining/exam_prep/exam')
+```
+
+
+<br>
+<br>
+
+> 문제 1
+
+1)
+**답: C**  
+IQ와 GPA를 고정하였을 때 기대할 수 있는 salary는 다음과 같습니다.  
+남자: 50 + 20(GPA) + 0.07(IQ) + 0.01(IQ*GPA)    
+*여자*: 85 + 20(GPA) + 0.07(IQ) + 0.01(IQ*GPA) - 10(GPA)  
+따라서 똑같은 조건 하에 GPA가 증가할 수록 남자의 salary 기대값이 더 높아지게 됩니다.
+
+2)
+**답: $137,100**  
+50 + 20∗4 + 0.07∗110 + 35 + 0.01(4×110) − 10∗(4) = 137.1
+
+3)
+**답: False**  
+Coefficient의 값이 나타내는 것은 변수에 따른 추정값의 변화량이지, 변수의 유의미성이나 상호효과를 나타내지 않습니다.
+
+<br>
+<br>
+
+
+> 문제2  
+
+mpg 데이터는 기존에 받은 Auto.csv 파일에서 추출  
+
+1)
+**mpg01 변수 추가**
+```{r message=F, warning=F, tidy=T}
+library(dplyr)
+Auto = read.csv("Auto.csv",header=T,na.strings="?")
+Auto = na.omit(Auto)
+Auto = mutate(Auto, mpg01 = 0)
+Auto$mpg01[Auto$mpg > median(Auto$mpg)] = 1
+table(Auto$mpg01)
+```
+<br>  
+
+2)
+**행자료 분리, LDA 수행, 오차율 계산**  
+* 자료 분리
+```{r message=F, warning=F}
+Auto_train = Auto[Auto$year%%2 == 0, ]
+Auto_test = Auto[Auto$year%%2 == 1, ]
+mpg01_test = Auto_test$mpg01
+```
+* LDA 수행 
+```{r message=F, warning=F, tidy=T}
+library(MASS)
+lda_fit = lda(mpg01 ~ cylinders + weight + displacement + horsepower, data = Auto_train)
+lda_pred = predict(lda_fit, Auto_test)
+```
+* 오차율 계산: **약 12.6%**
+```{r message=F, warning=F, tidy=T}
+mean(lda_pred$class != mpg01_test)
+```
+<br>
+
+3)
+**QDA 수행, 혼동행렬 생성, 오차율 계산**  
+* QDA 수행
+```{r message=F, warning=F, tidy=T}
+qda_fit = qda(mpg01 ~ cylinders + weight + displacement + horsepower, data = Auto_train)
+qda_pred = predict(qda_fit, Auto_test)
+```
+* 혼동행렬 계산
+```{r message=F, warning=F, tidy=T}
+table('prediction' = qda_pred$class, 'actual value' = mpg01_test)
+```
+* 오차율 계산: **약 13.2%**
+```{r message=F, warning=F, tidy=T}
+mean(qda_pred$class != mpg01_test)
+```
+<br>
+
+4)
+**다중 로지스틱 회귀분석 수행, 예측값 비교/오차율 계산**  
+* 다중 로지스틱 회귀분석
+```{r message=F, warning=F, tidy=T}
+glm_fit = glm(mpg01 ~ cylinders + weight + displacement + horsepower, data = Auto_train, family = binomial)
+```
+* 예측값 비교
+```{r message=F, warning=F, tidy=T}
+glm_probs = predict(glm_fit, Auto_test, type = "response")
+glm_pred = rep(0, length(glm_probs))
+glm_pred[glm_probs > 0.5] = 1
+table('prediction' = glm_pred, 'actual value' = Auto_test$mpg01)
+```
+* 오차율 계산: **약 12.1%**
+```{r message=F, warning=F, tidy=T}
+mean(glm_pred != mpg01_test)
+```
+<br>
+
+5)
+**KNN 수행, 조건부 오차율 계산**  
+* KNN 수행
+```{r message=F, warning=F, tidy=T}
+library(class)
+train_x = Auto_train[,c(2,5, 3, 4)]
+train_mpg01 = Auto_train$mpg01
+test_x = Auto_test[,c(2,5, 3, 4)]
+```
+* 오차율|k=1: **약 15.4%**
+```{r message=F, warning=F, tidy=T}
+set.seed(1)
+knn_pred = knn(train_x, test_x, train_mpg01, k = 1)
+mean(knn_pred != mpg01_test)
+```
+* 오차율|k=10: **약 16.5%**
+```{r message=F, warning=F, tidy=T}
+knn_pred = knn(train_x, test_x, train_mpg01, k = 10)
+mean(knn_pred != mpg01_test)
+```
+* 오차율|k=100: **약 14.3%**
+```{r message=F, warning=F, tidy=T}
+knn_pred = knn(train_x, test_x, train_mpg01, k = 100)
+mean(knn_pred != mpg01_test)
+
+```
+<br>
+<br>
+
+> 문제 3  
+
+#### ideo_self 모형을 구축하고, ideo_self = NA 에 대한 예측 시행  
+####    * 1번부터 900열 까지의 데이터로 모형을 구축
+####    * 901열부터 ideo_self = NA에 대한 예측 시행
+####    * 모델은 KNN을 사용하여 정치성향 추정
+<br>
+
+1. 자료 전처리
+ + 자료 내 NA 항목이 많음
+ + NA는 진보/보수 입장을 표명하지 않은 무응답 표이므로 나름 의미가 있다고 가정하고, '9'란 값을 기입하여 의미 부여
+```{r message=F, warning=F, tidy=T}
+library(xlsx)
+ideo_data = read.xlsx2('data1.xlsx',1, startRow = 2, header = T, stringsAsFactors = F)
+# 자료 정수화
+for (i in 1:ncol(ideo_data)){
+  ideo_data[,i] = as.integer(ideo_data[,i])
+}
+# k3 변수 [1,2]에서 [0,1]로 수정
+ideo_data$k3 = ideo_data$k3-1
+
+# NA 대신 '9'라는 factor 추가 
+ideo_data[is.na(ideo_data)] = 9
+
+# age 변수 제외하고 factor화
+for (i in c(1:4,6:ncol(ideo_data))){
+  ideo_data[,i] = as.factor(ideo_data[,i])
+}
+
+# 다음 변수 삭제 [x.(행번호), id, birth(나이 변수와 중복), age(age1이 실제 나이)]
+ideo_data = ideo_data[,c(-1, -2 ,-4, -6)]
+
+head(ideo_data,5)
+```
+<br>
+
+2. 데이터 분할
+  + 데이터는 총 3종류로 분할 (train/test/validation)
+  + train set은 1:900열 중 임의로 600개를 추출하여 모델링에 사용
+  + test set은 나머지 300개로 모델링을 검증하는데 사용 (정답률)
+  + validation set은 900열 이후 ideo_self 값이 na인 데이터로, 최선을 모델로 실제 값을 추정
+```{r message=F, warning=F, tidy=T}
+set.seed(1234)
+train_set = sample(1:900,600)
+ideo_train = na.omit(ideo_data[train_set,])
+ideo_test = na.omit(ideo_data[!1:900%in%train_set,])
+
+knn_train = ideo_train[,1:(ncol(ideo_train)-1)]
+knn_test = ideo_test[,1:(ncol(ideo_train)-1)]
+real_ideo = ideo_train[,ncol(ideo_train)]
+```
+<br>
+
+3. KNN 모델링
+  + 반복문을 사용하여 최적의 k값 추출
+  + 정답율|k=2: **약 85.7%**
+```{r message=F, warning=F, tidy=T}
+knn_accuracy = NULL
+for (i in (1:nrow(knn_test))){
+  test_pred = knn(knn_train, knn_test, real_ideo, k = i)
+  knn_accuracy = c(knn_accuracy, sum(test_pred != ideo_test$ideo_self)/length(test_pred))
+}
+plot(knn_accuracy, type = 'b', pch = 19)
+```
+```{r message=F, warning=F, tidy=T}
+which(knn_accuracy == max(knn_accuracy))
+knn_accuracy[2]
+```
+<br>
+
+4. 정치 성향 추정
+  + KNN|k=2로 validation set에 대한 예측 시행
+```{r message=F, warning=F, tidy=T}
+target_group = ideo_data[901:nrow(ideo_data),]
+target_group_variables = target_group[,1:(ncol(target_group)-1)]
+
+test_pred = knn(knn_train, target_group_variables, real_ideo, k = 2)
+```
+  * 아래와 같은 분포로 총 155명의 정치성향 분석 완료
+```{r message=F, warning=F, tidy=T}
+target_group$ideo_self = test_pred
+target_group_profile = target_group[,c(ncol(target_group),1:5)]
+profile_summ = target_group %>% group_by(ideo_self) %>% tally()
+profile_summ
+```
+```{r message=F, warning=F, tidy=T}
+library(ggplot2)
+library(RColorBrewer)
+ggplot(target_group_profile, aes(x=factor(1), fill = ideo_self)) + 
+  geom_bar(width = 1) + 
+  coord_polar(theta = 'y') +
+  scale_fill_manual(values = rev(brewer.pal(11, "RdYlBu")))
+```
+
+<br>
+<br>
+
+> 문제 4  
+
+#### 의원들의 군집을 파악  
+####    * 투표정보만으로 unsupervised-learning 기반의 clustering 수행
+####    * K-means 방식으로 군집분석을 수행 할 예정이며, sum of square 값 기반으로 적정 k값 확정
+####    * 정당 정보와 군집분석 간 결과 비교 (단, 상호 연관성이 떨어지더라도, 잘못된 군집이라고 볼 수는 없음)
+
+<br>
+
+1. 자료 전처리
+ + 발의 정보는 legislation 변수에, 정당정보는 politician 변수(추후 비교)에 할당
+ + 발의 법안 수는 numeric 형태로 변환
+```{r}
+politicians = read.xlsx2('data2.xlsx',2)
+legislation = read.xlsx2('data2.xlsx',1, stringsAsFactors = F)
+for (i in 1:ncol(legislation)){
+  legislation[,i] = as.numeric(legislation[,i])
+  }
+```
+<br>
+
+2. 군집분석 수행
+  + 분석 모델은 k-means를 사용하고, k=3으로 우선 결과 확인
+```{r}
+legislation_kmeans = kmeans(legislation, centers = 3, iter.max = 10000)
+kmeans_cluster = legislation_kmeans$cluster
+kmeans_cluster
+```
+  + k 값에 따라 sum of squares 변화를 확인하고 최적의 k 선정
+```{r}
+wssplot <- function(data, nc=15, seed=1234){
+  wss <- (nrow(data)-1)*sum(apply(data,2,var))
+  for (i in 2:nc){
+    set.seed(seed)
+    wss[i] <- sum(kmeans(data, centers=i)$withinss)}
+  plot(1:nc, wss, pch = 19, type="b", xlab="Number of Clusters", ylab="Sum of squares")}
+# ref. http://www.dodomira.com/2016/02/20/r%EC%9D%84-%EC%82%AC%EC%9A%A9%ED%95%9C-k-means-%EA%B5%B0%EC%A7%91%EB%B6%84%EC%84%9D-k-means-clustering-in-r/ 
+
+wssplot(legislation)
+```
+  
+  
+  + k > 6에서 sum of squares가 완만한 곡선을 그리는 모습을 볼 수 있음
+  + 따라서 **'k = 6'**으로 군집분석 재수행
+```{r}
+legislation_kmeans = kmeans(legislation, centers = 6, iter.max = 10000)
+kmeans_cluster = as.factor(legislation_kmeans$cluster)
+```
+<br>
+
+3. 결과 비교
+  + 4번 클러스터는 100% 자칭 보수를 대변하는 바른정당과 자유한국당으로만 이루어져 있음
+  + 바른정당과 자유한국당 역시 100$ 4번 클러스터로만 구성됨
+  + 2번 클러스터는 100% 더불어민주당 당원으로 구성
+  + 3번 클러스터는 100% 국민의당 당원으로 구성
+  + 법안 발의 성향 기반의 군집 분석과 소속 당과는 어느 정도 연관성이 있고, 따라서 당과 법안 발의 가운데도 연관성을 찾아볼 수 있었음    
+  *보수 정당의 경우 그 정도가 심하다고 볼 수 있음*
+  
+```{r}
+politicians = cbind(politicians,  'clustered' = kmeans_cluster)
+
+head(politicians)
+
+table(politicians[,2:3])
+
+ggplot(politicians[,2:3], aes(x = party, fill = clustered)) + geom_bar() + scale_fill_brewer(palette = 'Dark2')
+
+```
+

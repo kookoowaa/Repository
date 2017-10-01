@@ -1,0 +1,77 @@
+```{r}
+b = readLines('./twitter_text_modified.txt', encoding = 'UTF-8')
+b = unique(b)
+b = gsub(pattern = '[ㅋㅎㅠㄱㅜ]*', replace='', b)
+
+```
+
+```{r}
+length(b)
+```
+
+
+```{r}
+library(KoNLP)
+library(tm)
+#library(Unicode)
+#library(twitteR)
+library(wordcloud)
+#library(plyr)
+useSejongDic()
+```
+
+```{r}
+cps = Corpus(VectorSource(b))
+dtm = tm::DocumentTermMatrix(cps, control = list(tokenize = extractNoun, removeNumber = T, removePunctuation = T))
+str(dtm)
+
+```
+
+```{r}
+library(Matrix)
+
+rmat <-spMatrix(dtm$nrow,dtm$ncol, i=dtm$i, j=dtm$j, x=dtm$v) #데이터가 클 경우 sparse matrix 사
+head(rmat)
+
+```
+
+
+```{r}
+wcount<-colSums(rmat)
+wname <- dtm$dimnames$Terms
+wname <- rvest::repair_encoding(dtm$dimnames$Terms)
+colnames(rmat)<- wname
+str(wname)
+```
+
+
+```{r}
+sort.var <- sort(wcount,decreasing = T)[150]
+idx <- !( grepl('과자', wname) | (wcount<=sort.var)  |nchar(wname)==1 | grepl('내가', wname) | grepl('먹고', wname) | grepl('너무', wname) )
+wname.rel <- wname[idx]
+wcount.rel <- wcount[idx]
+```
+
+```{r}
+wname[wcount>12]
+```
+
+```{r}
+library(wordcloud)
+pal <- brewer.pal(9, "Set1")
+wordcloud(wname.rel,freq = wcount.rel, colors = pal)
+```
+
+```{r}
+
+
+b[grep('사랑',b)]
+
+```
+
+noise는 요하이(12)와 치토스(6)
+
+```{r}
+
+```
+
