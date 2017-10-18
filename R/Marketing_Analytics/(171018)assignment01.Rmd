@@ -1,0 +1,137 @@
+---
+title: 'Experiment on variable selection in multicollinearity'
+author: "박찬우"
+data: "2017년 10월 18일"
+output: html_document
+---
+<br>  
+<br>  
+
+#### **다중공선성하의 변수선택 시뮬레이션을 아래와 같이 시행**
+___
+1. 품질변수와 가격변수간에 상관관계가 있는 판매량 모형에서 품질변수 선택이 미치는 영향 확인
+
+2. 품질변수와 가격변수간에 상관관계를 제거한 판매량 모형에서 품질변수 선택이 미치는 영향 확인
+
+
+<br>
+
+
+___
+
+
+##### **품질변수와 가격변수간에 상관관계가 있는 판매량 모형에서 품질변수 선택이 미치는 영향 확인**
+
+
+___
+
+품질변수와 가격변수 생성에 있어 u2변수를 동일하게 사용하여 상관관계를 부여
+
+```{r}
+set.seed(70112)
+n = 5000  # number of observation
+trueB = c(3,-3, 3, 1.5, 0.7)
+err = rnorm(n,sd=3)  # error term simulation
+
+u1 = runif(n)
+u2 = runif(n)
+u3 = runif(n)
+u4 = runif(n)
+
+logPr = u1 +  u2
+quality = u3 + u2
+dummy1 = (u4> 0.7)*1.0
+dummy2 = ((u4<0.7)&(u4>0.3))*1.0
+
+logQ= trueB[1] + trueB[2]*logPr + trueB[3]*quality + trueB[4]*dummy1 + trueB[5]*dummy2 + err
+
+sales = data.frame(logQ, logPr, quality, dummy1, dummy2)
+head(sales)
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(data = sales, aes(x = logPr, y = logQ))+
+  geom_point(col = 'dark blue') +
+  geom_hline(yintercept = mean(logQ)) + 
+  geom_vline(xintercept = mean(logPr)) + 
+  ggtitle("Correlation: \n log(Sales) vs. log(Price)") +
+  xlab("log(Price)") + ylab('log(Sales)')
+
+ggplot(data = sales, aes(x = quality, y = logQ))+
+  geom_point(col = 'dark blue') +
+  geom_hline(yintercept = mean(logQ)) + 
+  geom_vline(xintercept = mean(quality)) + 
+  ggtitle("Correlation: \n log(Sales) vs. quality") +
+  xlab("quality") + ylab('log(Sales)')
+
+ggplot(data = sales, aes(x = dummy1, y = logQ))+
+  geom_point(col = 'dark blue') +
+  geom_hline(yintercept = mean(logQ)) + 
+  geom_vline(xintercept = mean(dummy1)) + 
+  ggtitle("Correlation: \n log(Sales) vs. yellow product") +
+  xlab("yellow product") + ylab('log(Sales)')
+
+ggplot(data = sales, aes(x = dummy2, y = logQ))+
+  geom_point(col = 'dark blue') +
+  geom_hline(yintercept = mean(logQ)) + 
+  geom_vline(xintercept = mean(dummy2)) + 
+  ggtitle("Correlation: \n log(Sales) vs. green product") +
+  xlab("green product") + ylab('log(Sales)')
+
+ggplot(data = sales, aes(x = logPr, y = quality))+
+  geom_point(col = 'dark blue') +
+  ggtitle("Correlation: \n log(Price) vs. quality") +
+  xlab("log(Price)") + ylab('quality')
+```
+
+
+
+```{r}
+summary(lm(logQ~., data = sales))
+```
+* 분석 결과 모델 및 베타값은 상당히 유효하게 나타남
+* 베타 값도 실제 모델 값과 1~2s.e. 정도의 오차만을 보임  
+(수업때와는 달리 관측값도 5,000개나 되다보니 상당히 유의한 결과를 도출)
+
+```{r}
+summary(lm(logQ~.-quality, data = sales))
+```
+* 품질 변수를 제외하여도 관측값이 많다보니 모델이나 베타 값도 유의하게 나타남
+* 하지만, 베타값 중 품질변수와 상관성이 있는 가격변수의 베타값이 실제 값과 약 15~16s.e. 가량 차이가 나며, 이를 예측에 사용하기에는 무리가 있음
+<br>
+<br>
+<br>
+
+___
+
+
+##### **품질변수와 가격변수간에 상관관계를 제거한 판매량 모형에서 품질변수 선택이 미치는 영향 확인**
+
+
+___
+
+품질변수로부터 가격변수의 상관성의 제거
+
+```{r}
+quality_modified = u3
+
+logQ_modified = trueB[1] + trueB[2]*logPr + trueB[3]*quality_modified + trueB[4]*dummy1 + trueB[5]*dummy2 + err
+
+sales_modified = cbind(logQ_modified, quality_modified, sales[,c(-1, -3)])
+sales_modified = sales_modified[,c(1,3,2,4,5)]
+```
+
+```{r}
+summary(lm(logQ_modified~., data = sales_modified))
+```
+* 1번 시뮬레이션과 유사한 결과를 보임
+* 모델 및 베타가 모두 유의하며, 실제 값과 1~2s.e. 정도의 오차만을 보임
+
+
+```{r}
+summary(lm(logQ_modified~.-quality_modified, data = sales_modified))
+```
+* 1번 시뮬레이션과 상당히 다른 결과를 보임
+* 가격과 상관성이 제거 된 상태에서 품질 변수를 제거할 경우, 가격 변수에 큰 영향력을 주지 않고 대신 intercept에만 영향을 미침

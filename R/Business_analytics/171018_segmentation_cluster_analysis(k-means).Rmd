@@ -1,0 +1,50 @@
+```{r}
+cereals = read.csv('D:/Github/R/Business_analytics/cereals.csv')
+cereals = cereals[,c('name', 'calories', 'protein', 'fat', 'sodium', 'fiber', 'carbo', 'sugars', 'potass', 'vitamins')]
+cereals = cereals[complete.cases(cereals),]
+var_cereals = cereals[,-1]
+row.names(var_cereals) = cereals[,1]
+rsc_cereals = sapply(1:ncol(var_cereals), function(i) var_cereals[,i]/sd(var_cereals[,i]))
+rsc_cereals = data.frame(rsc_cereals)
+colnames(rsc_cereals) = colnames(var_cereals)
+rownames(rsc_cereals) = rownames(var_cereals)
+rsc_cereals
+```
+
+
+```{r}
+library(cluster)
+```
+
+```{r}
+cluster.K4 = kmeans(rsc_cereals, centers = 4)
+cluster.K4
+```
+### wihin cluster sum of squares by cluster:
+    해당 값이 작을수록 분산이 적다고 볼 수 있고 유용하다고 볼 수 있음
+
+```{r}
+plot(rsc_cereals, col=cluster.K4$cluster)
+```
+
+```{r}
+set.seed(1)
+cluster1 = kmeans(rsc_cereals, centers = 4)
+set.seed(2)
+cluster2 = kmeans(rsc_cereals, centers = 4)
+table(cluster1$cluster, cluster2$cluster)
+```
+
+## 적절한 k 값 선택
+```{r}
+wss = c()
+for (i in 1:15){
+  wss[i] = kmeans(rsc_cereals, centers = i, nstart =10)$tot.withinss[[1]]
+}
+plot(wss, pch = 19, type = 'b', ylab = 'accuracy(lower the better)', xlab = 'number of k', main = 'K vs accuracy')
+```
+```{r}
+t(as.matrix(wss))
+```
+
+

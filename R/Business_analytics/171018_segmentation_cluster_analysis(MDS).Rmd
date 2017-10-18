@@ -1,0 +1,51 @@
+```{r}
+cereals = read.csv('D:/Github/R/Business_analytics/cereals.csv')
+cereals = cereals[,c('name', 'calories', 'protein', 'fat', 'sodium', 'fiber', 'carbo', 'sugars', 'potass', 'vitamins')]
+cereals = cereals[complete.cases(cereals),]
+var_cereals = cereals[,-1]
+row.names(var_cereals) = cereals[,1]
+rsc_cereals = sapply(1:ncol(var_cereals), function(i) var_cereals[,i]/sd(var_cereals[,i]))
+rsc_cereals = data.frame(rsc_cereals)
+colnames(rsc_cereals) = colnames(var_cereals)
+rownames(rsc_cereals) = rownames(var_cereals)
+dist.E = dist(rsc_cereals)
+
+```
+
+```{r}
+cmds = cmdscale(dist.E, k=2)  # k 는 차원 수(2)
+head(cmds)
+```
+
+```{r}
+plot(cmds, type = 'n')
+text(cmds, labels = rownames(cmds), cex = 0.5)
+```
+
+```{r}
+cluster.EC = hclust(dist.E)
+cluster.EA = hclust(dist.E, method = 'average')
+cluster.ES = hclust(dist.E, method = 'single')
+
+EC.group = cutree(cluster.EC, k = 4)
+EA.group = cutree(cluster.EA, k = 4)
+ES.group = cutree(cluster.ES, k = 4)
+KM.group = kmeans(rsc_cereals, centers = 4)$cluster
+
+```
+
+```{r}
+plot(cmds, type = 'n', main = 'MDS complete 4-groups')
+text(cmds, labels = rownames(cmds), cex = 0.5, col = EC.group)
+
+plot(cmds, type = 'n', main = 'MDS k-means 4-groups')
+text(cmds, labels = rownames(cmds), cex = 0.5, col = KM.group)
+
+plot(cmds, type = 'n', main = 'MDS single 4-groups')
+text(cmds, labels = rownames(cmds), cex = 0.5, col = ES.group)
+
+plot(cmds, type = 'n', main = 'MDS average 4-groups')
+text(cmds, labels = rownames(cmds), cex = 0.5, col = EA.group)
+
+```
+

@@ -1,0 +1,103 @@
+```{r}
+cereals = read.csv('D:/Github/R/Business_analytics/cereals.csv')
+head(cereals)
+```
+
+```{r}
+cereals = cereals[,c('name', 'calories', 'protein', 'fat', 'sodium', 'fiber', 'carbo', 'sugars', 'potass', 'vitamins')]
+head(cereals)
+
+```
+
+```{r}
+dim(cereals)
+```
+
+
+```{r}
+cereals[complete.cases(cereals),]
+### 결측치 제거
+cereals = cereals[complete.cases(cereals),]
+```
+
+```{r}
+dim(cereals)
+```
+
+```{r}
+var_cereals = cereals[,-1]
+row.names(var_cereals) = cereals[,1]
+var_cereals
+```
+
+```{r}
+summary(var_cereals)
+```
+
+```{r}
+### 표준화
+rsc_cereals = sapply(1:ncol(var_cereals), function(i) var_cereals[,i]/sd(var_cereals[,i]))
+rsc_cereals = data.frame(rsc_cereals)
+colnames(rsc_cereals) = colnames(var_cereals)
+rownames(rsc_cereals) = rownames(var_cereals)
+rsc_cereals
+```
+
+```{r}
+plot(rsc_cereals)
+```
+
+```{r}
+dist.E = dist(rsc_cereals)
+cluster.EC = hclust(dist.E)
+cluster.EC
+```
+
+```{r}
+plot(cluster.EC, hang = -1, cex=0.5)
+rect.hclust(cluster.EC, k =3, border = 'red')
+```
+```{r}
+ec.group = cutree(cluster.EC, k = 3:6)
+head(ec.group)
+```
+
+```{r}
+library(ggdendro)
+ggdendrogram(cluster.EC)
+```
+
+```{r}
+cluster.EA = hclust(dist.E, method = 'average')
+cluster.ES = hclust(dist.E, method = 'single')
+
+EC.group = cutree(cluster.EC, k = 4)
+EA.group = cutree(cluster.EA, k = 4)
+ES.group = cutree(cluster.ES, k = 4)
+
+table(EC.group, EA.group)
+
+```
+
+```{r}
+for (i in 1:4){
+  cat('cluster -', i,'\n')
+  tmp = rbind(colMeans(rsc_cereals[EC.group==i,]),
+              diag(cov(rsc_cereals[EC.group==i,])))
+  rownames(tmp) = c('Mean', 'Var')
+  print(tmp)
+  cat('\n')
+}
+```
+
+```{r}
+cov(rsc_cereals[EC.group==1,])
+# 1번 그룹 내 변수들 간 coveriance 계산
+```
+
+
+```{r}
+diag(cov(rsc_cereals[EC.group==1,]))
+# diag 행렬 값은 var와 동일
+```
+
