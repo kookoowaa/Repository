@@ -1,0 +1,172 @@
+```{r}
+buytest = read.table('buytest.txt', header = T)
+buytest
+summary(buytest)
+```
+
+```{r}
+buytest[buytest$SEX == "", 'SEX'] = NA
+levels(buytest$SEX)[1] = NA
+buytest[buytest$ORGSRC == "", 'ORGSRC'] = NA
+levels(buytest$ORGSRC)[1] = NA
+```
+
+```{r}
+buydata = buytest[,-c(1, 10,19:26)] # 사용되지 않는 변수 제거
+buydata = buydata[complete.cases(buydata),] # 결측치 제거
+buydata = model.matrix(~., buydata)[,-1] # 가변수 생성
+```
+
+```{r}
+buydata = as.data.frame(buydata)
+logit = glm(RESPOND~., data = buydata, family = 'binomial')
+logit
+```
+
+```{r}
+buydata
+```
+
+```{r}
+set.seed(1)
+train_ind = sample(1:nrow(buydata), nrow(buydata)*0.7)
+train = as.data.frame(buydata[train_ind,])
+test = as.data.frame(buydata[-train_ind,])
+
+X_train = buydata[train_ind, -1]
+y_train = buydata[train_ind, 1]
+X_test = buydata[-train_ind, -1]
+y_test = buydata[-train_ind, 1]
+```
+
+```{r}
+par(mfrow = c(1,2))
+barplot(table(y_train),
+main = paste("The distribution of RESPOND in Training set
+\n # of (Y=0): # of (Y=1)=",
+paste(round(table(y_train)/sum(y_train == 1),2),
+collapse = ":")))
+barplot(table(y_test),
+main = paste("The distribution of RESPOND in Testset
+\n # of (Y=0): # of (Y=1)=",
+paste(round(table(y_test)/sum(y_test == 1),2),
+collapse = ":")))
+```
+
+```{r}
+logit = glm(RESPOND~., data = train, family = "binomial")
+prob = predict(logit, test, type = 'response')
+prob[1:10]
+```
+
+```{r}
+cutoff = 0.5
+ifelse(prob[1:10] > cutoff,1,0)
+```
+
+```{r}
+cutoff = 1/6
+classification = function(model, newdata, cutoff){
+prob = predict(model,newdata,'response')
+ifelse(prob > cutoff,1,0)
+}
+```
+
+```{r}
+table(test$RESPOND, classification(logit, test, 0.3))
+```
+
+```{r}
+crosstable = function(model, newdata, cutoff){
+table(test$RESPOND,classification(model,newdata,cutoff))
+}
+crosstable(logit, test, 1/4)
+```
+
+```{r}
+cutoff_res = function(beta_hat = NULL, newx, response, cutoff, pred_prob = NULL){
+if (!is.null(beta_hat)) {
+  X = cbind(1,as.matrix(newx))
+  pred_prob = 1/(1+exp(-X%*%beta_hat))}
+pred = ifelse(pred_prob> cutoff, 1, 0)
+error_rate = mean(response != pred)
+sensitivity = sum(response == 1 & pred == 1)/sum(response == 1)
+specificity = sum(response == 0 & pred == 0)/sum(response == 0)
+precision = sum(response == 1 & pred == 1)/sum(pred == 1)
+recall = sensitivity
+if (sum(response == 1 & pred == 1) == 0) {f1 = 0}
+else {f1 = 2*(precision*recall)/(precision+recall)}
+cross_table = table(response, pred)
+return(list(res = c(cutoff, round(error_rate,4),
+                  round(sensitivity,4), round(specificity,4), round(f1, 4)),
+            cross_table = cross_table))
+}
+
+cutoff_res(logit$coefficients, X_test, y_test, 1/4)
+```
+
+```{r}
+prob = predict(logit, train, type = 'response')
+library(ROCR)
+```
+
+```{r}
+AUC = performance(prediction(prob , train[,'RESPOND']) , "auc")
+AUC@y.values # area under the curve
+```
+
+```{r}
+ROC = performance(prediction(prob ,y_train) , "tpr","fpr")
+plot(ROC , main = paste("ROC curve for Train data\n AUC:",
+round(as.numeric(AUC@y.values),4)),
+col = "blue", lwd = 2.5)
+abline(c(0,0), c(1,1), lty = 2, lwd = 2)
+```
+
+```{r}
+cutoff_can = seq(0.01, 0.99, by = 0.01)
+cutoff_out = t(sapply(1:length(cutoff_can),
+                      function(i) cutoff_res(logit$coefficients, X_train,
+                                            y_train, cutoff_can[i])[[1]]))
+colnames(cutoff_out) = c("cutoff","error rate","sensitivity","specificity","f1 score")
+head(cutoff_out)
+```
+
+```{r}
+cutoff_out[which.min(cutoff_out[,2]),]
+mean(y_train ==1)
+cutoff_res(logit$coefficients, X_train, y_train,
+            cutoff_out[which.min(cutoff_out[,2]), 1])[[2]]
+```
+
+### 민감도 0.5 이상
+
+```{r}
+cutoff_out[tail(which(cutoff_out[,3] >= 0.5), n = 1),]
+```
+
+```{r}
+cutoff_sel = cutoff_out[tail(which(cutoff_out[,3] >= 0.5), n = 1), 1]
+cutoff_res(logit$coefficients, X_train, y_train, cutoff_sel)[[2]]
+```
+
+### F1 스코어 최대값
+
+```{r}
+cutoff_out[which.max(cutoff_out[,5]),]
+```
+```{r}
+cutoff_res(logit$coefficients, X_train, y_train,
+            cutoff_out[which.max(cutoff_out[,5]), 1])[[2]]
+```
+
+> 종합
+
+```{r}
+cutoff = c()
+cutoff[1] = cutoff_out[which.min(cutoff_out[,2]), 1]
+cutoff[2] = cutoff_out[tail(which(cutoff_out[,3] >= 0.5), n = 1), 1]
+cutoff[3] = cutoff_out[which.max(cutoff_out[,5]), 1]
+as.data.frame(sapply(cutoff, function(cut) cutoff_res(logit$coefficients, X_test, y_test, cut)[[1]]), row.names = colnames(cutoff_out))
+```
+
