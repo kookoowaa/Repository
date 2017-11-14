@@ -1,0 +1,63 @@
+```{r}
+buytest = read.table('buytest.txt', header = T)
+
+buytest[buytest$SEX == "", 'SEX'] = NA
+levels(buytest$SEX)[1] = NA
+buytest[buytest$ORGSRC == "", 'ORGSRC'] = NA
+levels(buytest$ORGSRC)[1] = NA
+
+buydata = buytest[,-c(1, 10,19:26)] # 사용되지 않는 변수 제거
+buydata = buydata[complete.cases(buydata),] # 결측치 제거
+buydata = model.matrix(~., buydata)[,-1] # 가변수 생성
+
+set.seed(1)
+train_ind = sample(1:nrow(buydata), nrow(buydata)*0.7)
+train = as.data.frame(buydata[train_ind,])
+test = as.data.frame(buydata[-train_ind,])
+
+X_train = buydata[train_ind, -1]
+y_train = buydata[train_ind, 1]
+X_test = buydata[-train_ind, -1]
+y_test = buydata[-train_ind, 1]
+train
+```
+
+bagging 과적합한 tree들로 bootstrap & aggregating
+random_forest 과적합한 tree들로 bootstrap & aggregating (단!, 전체 변수 대신 random한 n개의 변수만 선택)
+
+```{r}
+library(randomForest)
+set.seed(1)
+p = ncol(train) - 1
+bag.fit = randomForest(x= X_train, y = as.factor(y_train),
+                        mtry = p, ntree = 500, importance = T)
+bag.fit
+mean(y_test != predict(bag.fit, X_test))
+```
+
+```{r}
+varImpPlot(bag.fit)
+```
+좌측이 정확도 (성능)
+우측이 순수도 기준 우수한 변수
+
+```{r}
+importance(bag.fit)
+```
+
+```{r}
+set.seed(1)
+rf.fit = randomForest(x= X_train, y = as.factor(y_train),
+                      mtry = floor(sqrt(p)), ntree = 500, importance = T)
+## mtry = floor(sqrt(p))가 바뀌는 부분
+rf.fit
+mean(y_test != predict(rf.fit, X_test))
+```
+
+```{r}
+varImpPlot(rf.fit)
+```
+
+```{r}
+importance(rf.fit)
+```

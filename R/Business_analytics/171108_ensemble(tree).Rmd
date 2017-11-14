@@ -1,0 +1,71 @@
+```{r}
+buytest = read.table('buytest.txt', header = T)
+
+buytest[buytest$SEX == "", 'SEX'] = NA
+levels(buytest$SEX)[1] = NA
+buytest[buytest$ORGSRC == "", 'ORGSRC'] = NA
+levels(buytest$ORGSRC)[1] = NA
+
+buydata = buytest[,-c(1, 10,19:26)] # 사용되지 않는 변수 제거
+buydata = buydata[complete.cases(buydata),] # 결측치 제거
+buydata = model.matrix(~., buydata)[,-1] # 가변수 생성
+
+set.seed(1)
+train_ind = sample(1:nrow(buydata), nrow(buydata)*0.7)
+train = as.data.frame(buydata[train_ind,])
+test = as.data.frame(buydata[-train_ind,])
+
+```
+
+```{r}
+library(rpart)
+tree.buydata = rpart(as.factor(RESPOND)~., data = train)
+tree.buydata
+```
+위의 예는 split 하지 않은 함수이며, rpart.control 값을 추가하여야 함
+
+
+```{r}
+tree.buydata = rpart(as.factor(RESPOND)~., data = train, 
+                     control = rpart.control(cp = 0.005))
+tree.buydata
+```
+
+```{r}
+plot(tree.buydata)
+text(tree.buydata, cex = 0.8)
+```
+
+```{r}
+plot(tree.buydata, margin = 0.1)
+text(tree.buydata, cex = 0.7, use.n =T)
+```
+
+```{r}
+tree.buydata = rpart(as.factor(RESPOND)~., data = train, 
+                     control = rpart.control(cp = 0.001))
+printcp(tree.buydata)
+```
+CP(a/복잡도 계수)가 작아질수록 나무는 복잡해지고, error는 작아지며, 
+  ** xerror와 xstd는 CV의 오류율과 sd기 때문에 적정 나무 선택의 기준이 됨 **
+
+
+CV를 통한 적정 CP 확인
+```{r}
+set.seed(1)
+K = 10
+sample.ind = sample(1:K, size = nrow(train), replace = T)
+cp = seq(from = 0.001, to = 0.01, length = 30)
+error = matrix(0, nrow = length(cp), K)
+for (i in 1:length(cp)){
+  for (j in 1:K){
+    tmp = rpart(as.factor(RESPOND)~., data = train[sample.ind != j,], cp = cp[i])
+    error[i,j] = sum(predict(tmp, train[sample.ind == j,], type = "class")
+    != train[sample.ind == j,]$RESPOND)/sum(sample.ind == j)
+    }
+}
+rowMeans(error)
+cp[which.min(rowMeans(error))]
+
+```
+

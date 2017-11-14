@@ -1,0 +1,61 @@
+```{r}
+buytest = read.table('buytest.txt', header = T)
+
+buytest[buytest$SEX == "", 'SEX'] = NA
+levels(buytest$SEX)[1] = NA
+buytest[buytest$ORGSRC == "", 'ORGSRC'] = NA
+levels(buytest$ORGSRC)[1] = NA
+
+buydata = buytest[,-c(1, 10,19:26)] # 사용되지 않는 변수 제거
+buydata = buydata[complete.cases(buydata),] # 결측치 제거
+buydata = model.matrix(~., buydata)[,-1] # 가변수 생성
+
+set.seed(1)
+train_ind = sample(1:nrow(buydata), nrow(buydata)*0.7)
+train = as.data.frame(buydata[train_ind,])
+test = as.data.frame(buydata[-train_ind,])
+
+X_train = buydata[train_ind, -1]
+y_train = buydata[train_ind, 1]
+X_test = buydata[-train_ind, -1]
+y_test = buydata[-train_ind, 1]
+train
+```
+
+
+```{r}
+n1 = sum(y_train == 1)
+set.seed(6)
+cc_ind = sample(1:sum(y_train == 0),
+size = 2*n1, replace = F)
+cc_data = rbind(train[y_train == 1,],
+train[y_train == 0,][cc_ind,])
+cc_data = cc_data[sample(1:nrow(cc_data), nrow(cc_data), replace = F),]
+table(cc_data$RESPOND)
+
+dim(cc_data)
+
+```
+
+```{r}
+tol_iter = 50
+beta_list = list()
+set.seed(6)
+for (iter in 1:tol_iter){
+cc_ind = sample(1:sum(y_train == 0),
+size = 2*n1, replace = F)
+cc_data = rbind(train[y_train == 1,],
+train[y_train == 0,][cc_ind,])
+beta_list[[iter]] = coef(glm(RESPOND~., data = cc_data, family = 'binomial'))
+}
+train_pred_probs = sapply(1:tol_iter,
+function(iter) 1/(1+exp(-cbind(1, X_train)%*%
+beta_list[[iter]])))
+train_pred_prob = rowMeans(train_pred_probs)
+test_pred_probs = sapply(1:tol_iter,
+function(iter) 1/(1+exp(-cbind(1, X_test)%*%
+beta_list[[iter]])))
+test_pred_prob = rowMeans(test_pred_probs)
+
+beta_list[1:5]
+```

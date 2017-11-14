@@ -1,0 +1,54 @@
+```{r}
+library(mlogit)
+
+ydata = read.csv('./yogurt100.csv')
+ydata[,15:18]=ydata[,15:18]*10  # scaling up prices of yogdata
+ydata
+```
+
+```{r}
+attach(ydata)
+ydata$Choice = Brand.1*1+Brand.2*2+Brand.3*3+Brand.4*4
+detach(ydata)
+ydata2 = mlogit.data(ydata, choice ="Choice", shape = "wide", varying=11:18, alt.levels=1:4)
+ydata2
+```
+
+```{r}
+mlout = mlogit(Choice~Price+Feature, data=ydata2)
+summary(mlout)
+```
+
+```{r}
+mpout = mlogit(Choice~Price+Feature, data=ydata2, probit=T)
+summary(mpout)
+```
+
+```{r}
+yogdata = as.matrix(ydata)
+n=2430
+
+myll=function(para) {
+	expv = exp(outer(rep(1,times=n),c(0.00, para[1:3]),"*") + para[4]*yogdata[,15:18] + para[5]*yogdata[,11:14])
+	sumv=rowSums(expv)
+	lnbuypr = log (expv/cbind(sumv,sumv,sumv,sumv))
+	mylogll = colSums(lnbuypr*yogdata[,7:10])
+	sum(-mylogll)
+}
+
+
+initp = array(-0.001,dim=5) # starting value for beta 
+
+outpara = nlm(myll,initp,hessian=TRUE, print.level=1, iterlim=length(initp)*100 )
+# outpara = nlm(myll,initp,hessian=TRUE, print.level=2, iterlim=length(initp)*100 )
+
+vcov = solve(outpara$hessian)
+se = sqrt(diag(vcov))
+
+cat("MLE Output \n")
+cat("The likelihood value :", outpara$minimum,"\n")
+cat("Estimate and the Standard Errors \n")
+print (t(rbind(outpara$estimate,se)))
+
+```
+

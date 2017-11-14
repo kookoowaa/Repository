@@ -1,0 +1,77 @@
+```{r}
+buytest = read.table('buytest.txt', header = T)
+
+buytest[buytest$SEX == "", 'SEX'] = NA
+levels(buytest$SEX)[1] = NA
+buytest[buytest$ORGSRC == "", 'ORGSRC'] = NA
+levels(buytest$ORGSRC)[1] = NA
+
+buydata = buytest[,-c(1, 10,19:26)] # 사용되지 않는 변수 제거
+buydata = buydata[complete.cases(buydata),] # 결측치 제거
+buydata = model.matrix(~., buydata)[,-1] # 가변수 생성
+
+set.seed(1)
+train_ind = sample(1:nrow(buydata), nrow(buydata)*0.7)
+train = as.data.frame(buydata[train_ind,])
+test = as.data.frame(buydata[-train_ind,])
+
+X_train = buydata[train_ind, -1]
+y_train = buydata[train_ind, 1]
+X_test = buydata[-train_ind, -1]
+y_test = buydata[-train_ind, 1]
+train
+```
+
+modeling
+```{r}
+library(xgboost)
+boost.fit = xgboost(data = X_train, label = y_train, max.depth = 2,
+                    eta = 0.1, nround = 2, objective = "binary:logistic")
+
+```
+
+validating
+```{r}
+pred = predict(boost.fit, X_test)
+mean(y_test != round(pred))
+
+```
+
+
+최적의 nround 구하기 cv
+```{r}
+set.seed(123)
+val.ind = sample(1:nrow(X_train), size = floor(nrow(X_train)*0.3))
+val.err = c()
+candidates = seq(from = 50, to = 250, by = 20)
+for (i in candidates){
+boost.val = xgboost(data = X_train[-val.ind,], label = y_train[-val.ind], max.depth = 2,
+eta = 0.1, nround = i, objective = "binary:logistic", verbose = 0)
+pred.val = predict(boost.val, X_train[val.ind,])
+val.err = c(val.err, mean(y_train[val.ind] != round(pred.val)))
+}
+val.err
+
+which.min(val.err)
+
+```
+
+```{r}
+boost.fit = xgboost(data = X_train, label = y_train, max.depth = 2,
+                    eta = 0.1, nround = candidates[which.min(val.err)], objective = "binary:logistic") 
+pred = predict(boost.fit, X_test)
+mean(y_test != round(pred))
+```
+
+```{r}
+import_mat = xgb.importance(colnames(X_train), model = boost.fit)
+print(import_mat)
+```
+
+```{r}
+library(Ckmeans.1d.dp)
+xgb.plot.importance(importance_matrix = import_mat)
+```
+
+
+
