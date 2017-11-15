@@ -1,0 +1,86 @@
+> Market Basket exercise
+
+```{r}
+insta = read.csv('d:/recommendation 실습자료/instacart.csv')
+```
+
+```{r}
+insta
+```
+
+```{r}
+set.seed(1)
+idx.ts = sample (1:length(unique(insta$user_id)), length(unique(insta$user_id))*0.3)
+idx.ts = sort (idx.ts)
+```
+
+```{r}
+user.tr = as.data.frame(unique(insta$user_id)[-idx.ts])
+user.ts = as.data.frame(unique(insta$user_id)[idx.ts])
+colnames(user.tr) = 'user_id'
+colnames(user.ts) = 'user_id'
+```
+
+```{r}
+library(dplyr)
+```
+
+```{r}
+tr.mat = insta %>% inner_join(user.tr, by = 'user_id')
+ts.mat = insta %>% inner_join(user.ts, by = 'user_id')
+```
+
+```{r}
+library(xgboost)
+```
+
+```{r}
+colnames(tr.mat)
+```
+
+
+
+
+
+```{r}
+X = xgb.DMatrix(as.matrix(tr.mat[,-c(1,2,37)]), label = tr.mat$reordered)
+model = xgboost(data = X, max_depth = 5, eta = 0.1, nrounds = 200, objective = 'binary:logistic')
+model
+```
+
+
+
+
+
+
+```{r}
+importance = xgb.importance(colnames(X), model = model)
+xgb.ggplot.importance(importance)
+```
+
+
+
+
+
+```{r}
+# Apply
+test.mat = xgb.DMatrix(as.matrix(ts.mat[,-c(1,2,37)]))
+ts.mat$fitted = predict(model, test.mat)
+```
+
+```{r}
+table = ts.mat %>% group_by(user_id) %>% summarize
+```
+
+```{r}
+table = table %>% mutate( nom = ifelse)
+```
+
+
+
+
+%%% precision
+추천 중 맞힌 갯수 / 추천 아이템 수
+
+%%% recall
+추천 중 맞힌 갯수 / 실제 구매 아이템 수
