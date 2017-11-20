@@ -1,7 +1,7 @@
 rm(list=ls())
 gc()
 
-setwd("D:/Dropbox/Á¶±³ÀÚ·á/°í¿ë³ëµ¿ºÎ_ÃßÃµ_201710/recommender_½Ç½ÀÀÚ·á")
+setwd("D:/Dropbox/ì¡°êµìë£Œ/ê³ ìš©ë…¸ë™ë¶€_ì¶”ì²œ_201710/recommender_ì‹¤ìŠµìë£Œ")
 
 #install.packages("Matrix")
 #install.packages("FactoRizationMachines")
@@ -16,16 +16,16 @@ colnames(ml100k) = c("user","item","rating","time")
 head(ml100k)
 
 library(Matrix)
-user=ml100k[,1] #943¸í
-items=ml100k[,2]+max(user) #1682°³
+user=ml100k[,1] #943ëª…
+items=ml100k[,2]+max(user) #1682ê°œ
 wdays=(as.POSIXlt(ml100k[,4],origin="1970-01-01")$wday+1)+max(items) 
-#POSIX ½Ã°£ ¶Ç´Â Unix ½Ã°£ (1970³â 1¿ù 1ÀÏ 00:00:00 ÇùÁ¤ ¼¼°è½Ã(UTC) ºÎÅÍÀÇ °æ°ú ½Ã°£À» ÃÊ·Î È¯»êÇÏ¿© Á¤¼ö·Î ³ªÅ¸³¿)
-#as.POSIXlt : POSIX ½Ã°£À» ¿¬µµ, ¿ù, ÀÏ, ½Ã, ºĞ, ÃÊ·Î ¹Ù²ãÁÖ´Â ÇÔ¼ö
+#POSIX ì‹œê°„ ë˜ëŠ” Unix ì‹œê°„ (1970ë…„ 1ì›” 1ì¼ 00:00:00 í˜‘ì • ì„¸ê³„ì‹œ(UTC) ë¶€í„°ì˜ ê²½ê³¼ ì‹œê°„ì„ ì´ˆë¡œ í™˜ì‚°í•˜ì—¬ ì •ìˆ˜ë¡œ ë‚˜íƒ€ëƒ„)
+#as.POSIXlt : POSIX ì‹œê°„ì„ ì—°ë„, ì›”, ì¼, ì‹œ, ë¶„, ì´ˆë¡œ ë°”ê¿”ì£¼ëŠ” í•¨ìˆ˜
 
 data=sparseMatrix(i=rep(1:nrow(ml100k),3),j=c(user,items,wdays),giveCsparse=F)
 target=ml100k[,3]
 
-#100000°³ ÀÚ·áÁß 20% ¸¦ »ÌÀ½ 
+#100000ê°œ ìë£Œì¤‘ 20% ë¥¼ ë½‘ìŒ 
 set.seed(123)
 subset=sample.int(nrow(data),nrow(data)*.2)
 subset=sort(subset)
@@ -39,7 +39,7 @@ target.test=target[subset]
 # with second-order 10 factors (default) and regularization
 library(FactoRizationMachines)
 set.seed(1)
-#10Àº second-order factor °¹¼ö(K)
+#10ì€ second-order factor ê°¯ìˆ˜(K)
 model=FM.train(data.train,target.train,regular=0.1, c(1,10), iter=200) 
 model
 
@@ -52,4 +52,4 @@ sqrt(mean((predict(model,data.train)-target.train)^2)) #RMSE of train set
 
 # Practice 2 : RC data :Restaurant & consumer data Data Set
 #https://archive.ics.uci.edu/ml/datasets/Restaurant+%26+consumer+data#
-#Á÷Á¢ ÇØº¸¼¼¿ä!
+#ì§ì ‘ í•´ë³´ì„¸ìš”!

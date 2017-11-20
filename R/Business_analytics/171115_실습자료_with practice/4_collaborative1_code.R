@@ -1,7 +1,7 @@
 rm(list=ls())
 gc()
 
-setwd("D:/Dropbox/Á¶±³ÀÚ·á/°í¿ë³ëµ¿ºÎ_ÃßÃµ_201710/recommender_½Ç½ÀÀÚ·á")
+setwd("D:/Dropbox/ì¡°êµìë£Œ/ê³ ìš©ë…¸ë™ë¶€_ì¶”ì²œ_201710/recommender_ì‹¤ìŠµìë£Œ")
 #install.packages("recommenderlab")
 
 #########################################
@@ -18,52 +18,52 @@ data(Jester5k)
 head(getRatingMatrix(Jester5k))
 #head(as(Jester5k, "matrix")) 
 
-image(Jester5k[1:80,])      #Jester5k user1~80±îÁö¸¸ ÃßÃâÇØ¼­ ratingmatrix¸¦ È®ÀÎ
+image(Jester5k[1:80,])      #Jester5k user1~80ê¹Œì§€ë§Œ ì¶”ì¶œí•´ì„œ ratingmatrixë¥¼ í™•ì¸
 
-#30% °ËÁõÀÚ·á »ı¼º
+#30% ê²€ì¦ìë£Œ ìƒì„±
 n.user=1000; n.item=ncol(Jester5k)
-a <- as(Jester5k[1:n.user],"matrix") #1000 ¸íÀÇ user¸¸ »ç¿ë
+a <- as(Jester5k[1:n.user],"matrix") #1000 ëª…ì˜ userë§Œ ì‚¬ìš©
 set.seed(123)
-subset=sample.int(sum(!is.na(a)),sum(!is.na(a))*.3) #rating µÈ Á¡¼öÁß 30%¸¸ ÃßÃâ
+subset=sample.int(sum(!is.na(a)),sum(!is.na(a))*.3) #rating ëœ ì ìˆ˜ì¤‘ 30%ë§Œ ì¶”ì¶œ
 subset=sort(subset)
 train = a; test =a
-train[!is.na(train)][subset] = NA; test[!is.na(test)][-subset] = NA #rating µÈ Á¡¼öµé Áß train, test ³ª´®
+train[!is.na(train)][subset] = NA; test[!is.na(test)][-subset] = NA #rating ëœ ì ìˆ˜ë“¤ ì¤‘ train, test ë‚˜ëˆ”
 
 
 #User based Collaborative filtering
-rtrain = as(train,"realRatingMatrix") #rating matrix ¸¸ ÇÔ¼öÀÇ inputÀ¸·Î °¡´É
-r=Recommender(rtrain, method="UBCF")  #method¸¦ IBCF·ÎÇÏ¸é item-based CF
+rtrain = as(train,"realRatingMatrix") #rating matrix ë§Œ í•¨ìˆ˜ì˜ inputìœ¼ë¡œ ê°€ëŠ¥
+r=Recommender(rtrain, method="UBCF")  #methodë¥¼ IBCFë¡œí•˜ë©´ item-based CF
 getModel(r)$method
 getModel(r)$nn
 pr=predict(r, rtrain[1:2,], type="ratings")
-as(pr, "matrix") #ÀÌ¹Ì Æò°¡ÇÑ ÀÚ·áÀÇ °æ¿ì ¿¹Ãø°ªÀ» ÁÖÁö ¾Ê´Â´Ù
+as(pr, "matrix") #ì´ë¯¸ í‰ê°€í•œ ìë£Œì˜ ê²½ìš° ì˜ˆì¸¡ê°’ì„ ì£¼ì§€ ì•ŠëŠ”ë‹¤
 
-#nÀ» ÅëÇØ ÃßÃµÇ°¸ñ¼ö¸¦ Á¶Á¤ °¡´É 
+#nì„ í†µí•´ ì¶”ì²œí’ˆëª©ìˆ˜ë¥¼ ì¡°ì • ê°€ëŠ¥ 
 ptype=predict(r, rtrain[1:2,], n=5)
 as(ptype, "list")
 
 #RMSE
 pr=predict(r, rtrain, type="ratings")
-pr=as(pr, "matrix") #ÀÌ¹Ì Æò°¡ÇÑ ÀÚ·áÀÇ °æ¿ì ¿¹Ãø°ªÀ» ÁÖÁö ¾Ê´Â´Ù
+pr=as(pr, "matrix") #ì´ë¯¸ í‰ê°€í•œ ìë£Œì˜ ê²½ìš° ì˜ˆì¸¡ê°’ì„ ì£¼ì§€ ì•ŠëŠ”ë‹¤
 
-pr[pr>10]=10 #10º¸´Ù Å©¸é 10, -10º¸´Ù ÀÛÀ¸¸é -10À¸·Î ¿¹ÃøÇÏ°Ú´Ù.
+pr[pr>10]=10 #10ë³´ë‹¤ í¬ë©´ 10, -10ë³´ë‹¤ ì‘ìœ¼ë©´ -10ìœ¼ë¡œ ì˜ˆì¸¡í•˜ê² ë‹¤.
 pr[pr<(-10)]=-10
 RMSE(test, pr)
 
 
 
-#----- (4-2) ½ºÄÉÀÏ º¸Á¤  ----------#
+#----- (4-2) ìŠ¤ì¼€ì¼ ë³´ì •  ----------#
 dgmat=cbind(train[1:(n.user*n.item)], as.data.frame(cbind(rep(rownames(train), n.item), 
                                                           rep(colnames(train), each=n.user))))  
 
-#°¢ ÇàÀº ÇÏ³ªÀÇ ÆòÁ¡¿¡ ´ëÇÑ Á¤º¸¸¦ °¡Áü
+#ê° í–‰ì€ í•˜ë‚˜ì˜ í‰ì ì— ëŒ€í•œ ì •ë³´ë¥¼ ê°€ì§
 colnames(dgmat) <- c("rating","user","item")
 user = unique(dgmat$user); item = unique(dgmat$item)
 head(dgmat)
-dgmat = dgmat[is.na(dgmat$rating)==F,]        #ÆòÁ¡ÀÌ ÀÖ´Â Á¤º¸¸¸ »ç¿ë
+dgmat = dgmat[is.na(dgmat$rating)==F,]        #í‰ì ì´ ìˆëŠ” ì •ë³´ë§Œ ì‚¬ìš©
 #making dummy variable
-dummy = model.matrix(rating~user+item, dgmat) #user¿Í item¿¡ ´ëÇØ dummy variable »ı¼º, º¯¼ö 1°³ ±âÁØÀ¸·Î 999°³
-dummy = dummy[,-1] # coefficient termÀº Á¦¿ÜÇÏÀÚ
+dummy = model.matrix(rating~user+item, dgmat) #userì™€ itemì— ëŒ€í•´ dummy variable ìƒì„±, ë³€ìˆ˜ 1ê°œ ê¸°ì¤€ìœ¼ë¡œ 999ê°œ
+dummy = dummy[,-1] # coefficient termì€ ì œì™¸í•˜ì
 
 library(glmnet)
 set.seed(100)
@@ -74,26 +74,26 @@ lm= glmnet(dummy, dgmat$rating, family="gaussian", lambda = cv.lm$lambda.min, al
 #lm= glmnet(dummy, dgmat$rating, family="gaussian", lambda = 0.2, alpha=0)
 head(coef(lm))
 
-#³ª¸ÓÁö Á¡¼ö·Î neighborhood method
+#ë‚˜ë¨¸ì§€ ì ìˆ˜ë¡œ neighborhood method
 dgmat$rating = dgmat$rating - (lm$a0 + dummy %*% lm$beta)
-#°¢ rowÀÇ user(item)°¡ ¸î¹øÂ° user(item) ÀÎÁö È®ÀÎ
+#ê° rowì˜ user(item)ê°€ ëª‡ë²ˆì§¸ user(item) ì¸ì§€ í™•ì¸
 user.index = match(dgmat$user, user); item.index = match(dgmat$item, item) 
 mat=sparseMatrix(i=user.index, j=item.index, x=dgmat$rating)
-#dgmat$rating °ª Áß 0ÀÌ ¾øÀ½À» È®ÀÎÇÏ°í NA¸¦ ³ÖÀ½
+#dgmat$rating ê°’ ì¤‘ 0ì´ ì—†ìŒì„ í™•ì¸í•˜ê³  NAë¥¼ ë„£ìŒ
 mat=as.matrix(mat) ; sum(dgmat$rating==0,na.rm=T) ; mat[mat==0]=NA          
 colnames(mat)=item; rownames(mat)=user
-#Recommender ÇÔ¼ö¸¦ À§ÇØ ´Ù½Ã rating matrix·Î..
+#Recommender í•¨ìˆ˜ë¥¼ ìœ„í•´ ë‹¤ì‹œ rating matrixë¡œ..
 mat= as(mat, "realRatingMatrix")                                  
 
 
 r1= Recommender(mat, method="UBCF")
 pr1=predict(r1, mat, type="ratings")
 pr1 = as(pr1, "matrix")
-#user¸¦ ""·Î¹Ù²Ù´Â function
+#userë¥¼ ""ë¡œë°”ê¾¸ëŠ” function
 rownames(lm$beta) = gsub('user','', rownames(lm$beta)); rownames(lm$beta) = gsub('item', '', rownames(lm$beta)) 
 item=as.character(item); user=as.character(user)
 
-# ÃßÁ¤µÈ °ªµéÀ» µû·Î ÀúÀå
+# ì¶”ì •ëœ ê°’ë“¤ì„ ë”°ë¡œ ì €ì¥
 tmp.cf=data.frame(as.matrix(rownames(lm$beta)), as.matrix(lm$beta))
 mu.0=lm$a0
 mu.u=data.frame(user)
@@ -111,12 +111,12 @@ scale.value = t(apply(scale.value, 1, function(x) x+mu.i$coef))
 pr1.final =scale.value + pr1
 
 #pr1.final
-sort(pr1.final[1,], decreasing=T) #user1¿¡ ´ëÇØ ¿¹»óÆòÁ¡ÀÌ ³ôÀº ¼øÀ¸·Î Á¤·Ä
+sort(pr1.final[1,], decreasing=T) #user1ì— ëŒ€í•´ ì˜ˆìƒí‰ì ì´ ë†’ì€ ìˆœìœ¼ë¡œ ì •ë ¬
 sort(pr1.final[2,], decreasing=T)
 
 
 #RMSE
-pr1.final[pr1.final>10]=10 #10º¸´Ù Å©¸é 10, -10º¸´Ù ÀÛÀ¸¸é -10À¸·Î ¿¹ÃøÇÏ°Ú´Ù.
+pr1.final[pr1.final>10]=10 #10ë³´ë‹¤ í¬ë©´ 10, -10ë³´ë‹¤ ì‘ìœ¼ë©´ -10ìœ¼ë¡œ ì˜ˆì¸¡í•˜ê² ë‹¤.
 pr1.final[pr1.final<(-10)]=-10
 RMSE(test,pr1.final)
 
@@ -124,7 +124,7 @@ RMSE(test,pr1.final)
 # Practice 2: MovieLense data
 data("MovieLense")
 
-#À§ °úÁ¤À» µû¶ó¼­ ÇØº¸¼¼¿ä!
+#ìœ„ ê³¼ì •ì„ ë”°ë¼ì„œ í•´ë³´ì„¸ìš”!
 
 
 ################################################
@@ -145,35 +145,35 @@ colnames(pred)=item ; rownames(pred)=user
 head(pred[,1:10])
 
 #prediction
-i1 = is.na(train[1,])     #»ç¿ëÀÚ 1,2°¡ ÆòÁ¡À» ³»¸®Áö ¾ÊÀº »óÇ°µéÀ» ÃßÃâ
+i1 = is.na(train[1,])     #ì‚¬ìš©ì 1,2ê°€ í‰ì ì„ ë‚´ë¦¬ì§€ ì•Šì€ ìƒí’ˆë“¤ì„ ì¶”ì¶œ
 i2 = is.na(train[2,])
-pred[1,i1==T] ; pred[2,i2==T]         #ÆòÁ¡À» ³»¸®Áö ¾ÊÀº »óÇ°µé¿¡ ´ëÇØ¼­¸¸ ¿¹»óÆòÁ¡À» °üÂû
+pred[1,i1==T] ; pred[2,i2==T]         #í‰ì ì„ ë‚´ë¦¬ì§€ ì•Šì€ ìƒí’ˆë“¤ì— ëŒ€í•´ì„œë§Œ ì˜ˆìƒí‰ì ì„ ê´€ì°°
 sort(pred[1,i1==T],decreasing=T)
 sort(pred[2,i2==T],decreasing=T)
 
-pred[pred>10]=10 #10º¸´Ù Å©¸é 10, -10º¸´Ù ÀÛÀ¸¸é -10À¸·Î ¿¹ÃøÇÏ°Ú´Ù.
+pred[pred>10]=10 #10ë³´ë‹¤ í¬ë©´ 10, -10ë³´ë‹¤ ì‘ìœ¼ë©´ -10ìœ¼ë¡œ ì˜ˆì¸¡í•˜ê² ë‹¤.
 pred[pred<(-10)]=-10
 RMSE(test,pred)
 RMSE(train,pred)
 
 
-#----- (5-2) scale º¸Á¤ ----------#
-mat1=as(mat,"matrix")           #¾Õ¿¡¼­ scale º¸Á¤¿¡ »ç¿ëÇß´ø mat º¯¼ö¸¦ ±×´ë·Î »ç¿ëÇÏ¸é µÈ´Ù.
+#----- (5-2) scale ë³´ì • ----------#
+mat1=as(mat,"matrix")           #ì•ì—ì„œ scale ë³´ì •ì— ì‚¬ìš©í–ˆë˜ mat ë³€ìˆ˜ë¥¼ ê·¸ëŒ€ë¡œ ì‚¬ìš©í•˜ë©´ ëœë‹¤.
 mf1 = matfact(mat1)
 pred1 = mf1$P %*% t(mf1$Q)
 
 colnames(pred1)=item ; rownames(pred1)=user
-pred1.final=pred1+scale.value       #¾Õ¿¡¼­¿Í °°Àº º¸Á¤°ªÀ» ´õÇØÁÖ¸é µÈ´Ù
-pred1.final[1,i1==T] ; pred1.final[2,i2==T]       #matrix factorizationÀ» ÅëÇÑ user1,2ÀÇ ¿¹»óº°Á¡
-#º°Á¡ ¼øÀ¸·Î Á¤·Ä
+pred1.final=pred1+scale.value       #ì•ì—ì„œì™€ ê°™ì€ ë³´ì •ê°’ì„ ë”í•´ì£¼ë©´ ëœë‹¤
+pred1.final[1,i1==T] ; pred1.final[2,i2==T]       #matrix factorizationì„ í†µí•œ user1,2ì˜ ì˜ˆìƒë³„ì 
+#ë³„ì  ìˆœìœ¼ë¡œ ì •ë ¬
 sort(pred1.final[1,i1==T],decreasing=T); sort(pred1.final[2,i2==T],decreasing=T)    
 
 
-pred1.final[pred1.final>10]=10 #10º¸´Ù Å©¸é 10, -10º¸´Ù ÀÛÀ¸¸é -10À¸·Î ¿¹ÃøÇÏ°Ú´Ù.
+pred1.final[pred1.final>10]=10 #10ë³´ë‹¤ í¬ë©´ 10, -10ë³´ë‹¤ ì‘ìœ¼ë©´ -10ìœ¼ë¡œ ì˜ˆì¸¡í•˜ê² ë‹¤.
 pred1.final[pred1.final<(-10)]=-10
 RMSE(test,pred1.final)
 RMSE(train, pred1.final)
 
 
 # Practice 2: MovieLense data
-#À§ °úÁ¤À» µû¶ó¼­ ÇØº¸¼¼¿ä!
+#ìœ„ ê³¼ì •ì„ ë”°ë¼ì„œ í•´ë³´ì„¸ìš”!

@@ -1,6 +1,6 @@
 rm(list=ls())
 gc()
-setwd("D:/Dropbox/Á¶±³ÀÚ·á/°í¿ë³ëµ¿ºÎ_ÃßÃµ_201710/recommender_½Ç½ÀÀÚ·á")
+setwd("D:/Dropbox/ì¡°êµìë£Œ/ê³ ìš©ë…¸ë™ë¶€_ì¶”ì²œ_201710/recommender_ì‹¤ìŠµìë£Œ")
 
 #install.packages("dplyr")
 #install.packages("tidyr")
@@ -15,45 +15,45 @@ setwd("D:/Dropbox/Á¶±³ÀÚ·á/°í¿ë³ëµ¿ºÎ_ÃßÃµ_201710/recommender_½Ç½ÀÀÚ·á")
 
 data <- read.csv("card.csv") #5027693 by 6
 
-# °í°´ "P223597622"
+# ê³ ê° "P223597622"
 data[data$CLNN=="P223597622" & data$APV_TS_D < 20140700,]
 data[which(data$CLNN=="P223597622" & APV_TS_D > 20140700),]
 
 library(dplyr)
 
-#month ÃßÃâ
+#month ì¶”ì¶œ
 data1 <- data %>% mutate(month=ifelse(APV_TS_D>20140700, 7, 6), 
                          month=ifelse(APV_TS_D<20140601, 5, month)) %>% select(-APV_TS_D)
 
-#userÁ¤º¸ ÃßÃâ. 60879¸í
+#userì •ë³´ ì¶”ì¶œ. 60879ëª…
 user <- data1 %>% select(CLNN, SEX_CCD, CLN_AGE, AVG_Y_INA) %>% 
   distinct(CLNN, .keep_all=TRUE)
 
-#³ªÀÌ, ¼ºº° ´õ¹Ì
+#ë‚˜ì´, ì„±ë³„ ë”ë¯¸
 user <- user %>% mutate(age2 =ifelse( (CLN_AGE>=40 & CLN_AGE <60), 1, 0),
                         age3 =ifelse(CLN_AGE >=60, 1, 0)) %>% select(-CLN_AGE)
 user$SEX_CCD <- ifelse(user$SEX_CCD =="F", 1, 0)
 
 
 library(tidyr)
-#5,6¿ù ÀÚ·á·Î ¼³¸íº¯¼ö ¸¸µê
+#5,6ì›” ìë£Œë¡œ ì„¤ëª…ë³€ìˆ˜ ë§Œë“¦
 input <- data1 %>% filter(month !=7) %>% group_by(CLNN, MCT_RY_NM) %>% 
   summarise(count=n()) %>% spread(MCT_RY_NM, count) %>% ungroup()
 input <- input %>% inner_join(user, by="CLNN")
 input[is.na(input)]=0
 head(input)
 
-#7¿ù ÀÚ·á·Î Á¾¼Óº¯¼ö ¸¸µê
+#7ì›” ìë£Œë¡œ ì¢…ì†ë³€ìˆ˜ ë§Œë“¦
 label <- data1 %>% filter(month==7) %>% group_by(CLNN, MCT_RY_NM) %>% summarise(label=1)%>% ungroup()
 label <- label %>% group_by(CLNN) %>% spread(MCT_RY_NM, label) %>% ungroup()
 label[is.na(label)]=0
 head(label)
 
-#°í°´ ¼ø¼­ ¶È°°ÀºÁö check
+#ê³ ê° ìˆœì„œ ë˜‘ê°™ì€ì§€ check
 sum(input$CLNN != label$CLNN)
 
 
-#30% ´Â Æò°¡ÀÚ·á·Î »ç¿ëÇÏÀÚ.
+#30% ëŠ” í‰ê°€ìë£Œë¡œ ì‚¬ìš©í•˜ì.
 set.seed(1001)
 
 idx.ts = sample(1:nrow(input), round(nrow(input)*0.3))
@@ -62,30 +62,30 @@ idx.ts = sort(idx.ts)
 train=input[-idx.ts,]; label.tr = label[-idx.ts,]
 test=input[idx.ts,]; label.ts = label[idx.ts,]
 
-#user index´Â µû·Î ÀúÀå
+#user indexëŠ” ë”°ë¡œ ì €ì¥
 user.tr = train$CLNN; user.ts = test$CLNN
 train = train[,-1]; test = test[,-1]
 label.tr = label.tr[,-1]; label.ts = label.ts[,-1]
 
-#±¸¸ÅÈ½¼ö ¸¹°Å³ª ÀûÀº Ç°¸ñ ÃßÃµ
+#êµ¬ë§¤íšŸìˆ˜ ë§ê±°ë‚˜ ì ì€ í’ˆëª© ì¶”ì²œ
 item.count=apply(train[,1:30], 2, sum)
 item.count=sort(item.count, decreasing = T)
 head(item.count)
 
-#---------- ¸ğÇü 1: ÃßÃµÈ½¼ö ¸¹Àº Ç°¸ñ ÃßÃµ------------------------------------------------#
+#---------- ëª¨í˜• 1: ì¶”ì²œíšŸìˆ˜ ë§ì€ í’ˆëª© ì¶”ì²œ------------------------------------------------#
 
 real.item=colSums(label.ts)
 
-real.item #29: ÇÒ/½´, 28: ÇÑ½Ä, 27: ÆíÀÇÁ¡
+real.item #29: í• /ìŠˆ, 28: í•œì‹, 27: í¸ì˜ì 
 
-real.item[29]/length(user.ts) #ÇÒÀÎÁ¡/½´ÆÛ¸¶ÄÏ ÃßÃµ
-sum(real.item[c(29,28)])/(2*length(user.ts)) #ÇÒÀÎÁ¡/½´ÆÛ¸¶ÄÏ, ÇÑ½Ä ÃßÃµ
-sum(real.item[c(29,28,27)])/(3*length(user.ts)) #ÇÒÀÎÁ¡/½´ÆÛ¸¶ÄÏ,ÇÑ½Ä, ÆíÀÇÁ¡ ÃßÃµ
-sum(real.item[c(25,9,21)])/(3*length(user.ts)) #Ä¿ÇÇÀü¹®Á¡, ¹éÈ­Á¡, Á¦°úÁ¡. °­ÀÇ³ëÆ® Æ²¸²
+real.item[29]/length(user.ts) #í• ì¸ì /ìŠˆí¼ë§ˆì¼“ ì¶”ì²œ
+sum(real.item[c(29,28)])/(2*length(user.ts)) #í• ì¸ì /ìŠˆí¼ë§ˆì¼“, í•œì‹ ì¶”ì²œ
+sum(real.item[c(29,28,27)])/(3*length(user.ts)) #í• ì¸ì /ìŠˆí¼ë§ˆì¼“,í•œì‹, í¸ì˜ì  ì¶”ì²œ
+sum(real.item[c(25,9,21)])/(3*length(user.ts)) #ì»¤í”¼ì „ë¬¸ì , ë°±í™”ì , ì œê³¼ì . ê°•ì˜ë…¸íŠ¸ í‹€ë¦¼
 
 
-#---------- ¸ğÇü 2: ·ÎÁö½ºÆ½ ¸ğÇü ------------------------------------------------#
-p.logis = label.ts #È®·ü ÀúÀåÇÒ table
+#---------- ëª¨í˜• 2: ë¡œì§€ìŠ¤í‹± ëª¨í˜• ------------------------------------------------#
+p.logis = label.ts #í™•ë¥  ì €ì¥í•  table
 library(glmnet)
 
 for(i in 1:30){
@@ -94,7 +94,7 @@ for(i in 1:30){
   rm(lm); gc()
 }
 
-#userº° Ã¹¹øÂ°, µÎ¹øÂ°, ¼¼¹øÂ° È®·ü ³ôÀº ¾ÆÀÌÅÛ ÀÎµ¦½º ÃßÃâ
+#userë³„ ì²«ë²ˆì§¸, ë‘ë²ˆì§¸, ì„¸ë²ˆì§¸ í™•ë¥  ë†’ì€ ì•„ì´í…œ ì¸ë±ìŠ¤ ì¶”ì¶œ
 index1=apply(p.logis, 1, function(x) sort.int(t(x), index.return=TRUE, decreasing = T)$ix[1])
 index2=apply(p.logis, 1, function(x) sort.int(t(x), index.return=TRUE, decreasing = T)$ix[2])
 index3=apply(p.logis, 1, function(x) sort.int(t(x), index.return=TRUE, decreasing = T)$ix[3])
@@ -107,28 +107,28 @@ sum(as.matrix(label.ts)[cbind(1:nrow(label.ts),index1)])/length(user.ts)
     sum(as.matrix(label.ts)[cbind(1:nrow(label.ts),index3)]))/
   (3*length(user.ts))
 
-#ÃßÃµ Ç°¸ñ¼ö
+#ì¶”ì²œ í’ˆëª©ìˆ˜
 length(unique(index1))
 length(unique(index2))
 length(unique(index3))
 
 
-#Ç°¸ñº°·Î ±¸¸Å°¡´É¼º ³ôÀº ÀÏºÎ °í°´¿¡°Ô ÃßÃµ
+#í’ˆëª©ë³„ë¡œ êµ¬ë§¤ê°€ëŠ¥ì„± ë†’ì€ ì¼ë¶€ ê³ ê°ì—ê²Œ ì¶”ì²œ
 
-#Ä¿ÇÇÀü¹®Á¡, ¹éÈ­Á¡, Á¦°úÁ¡
+#ì»¤í”¼ì „ë¬¸ì , ë°±í™”ì , ì œê³¼ì 
 colnames(p.logis)[25]; colnames(p.logis)[9]; colnames(p.logis)[21]
 sum(label.ts[,25]); sum(label.ts[,9]); sum(label.ts[,21])
 
-#Ç°¸ñº° ±¸¸Å°¡´É¼º ³ôÀº °í°´700¸í¿¡°Ô ÃßÃµ
+#í’ˆëª©ë³„ êµ¬ë§¤ê°€ëŠ¥ì„± ë†’ì€ ê³ ê°7000ëª…ì—ê²Œ ì¶”ì²œ
 (sum(label.ts[sort.int(t(p.logis[,25]), index.return=TRUE, decreasing = T)$ix[1:7000],25]) +
     sum(label.ts[sort.int(t(p.logis[,9]), index.return=TRUE, decreasing = T)$ix[1:7000],9]) +
     sum(label.ts[sort.int(t(p.logis[,21]), index.return=TRUE, decreasing = T)$ix[1:7000],21])) / (7000*3)
 
 
 
-#---------- ¸ğÇü 3: boosting ¸ğÇü ------------------------------------------------#
+#---------- ëª¨í˜• 3: boosting ëª¨í˜• ------------------------------------------------#
 
-p.boost = label.ts #È®·ü ÀúÀåÇÒ table
+p.boost = label.ts #í™•ë¥  ì €ì¥í•  table
 library(xgboost)
 
 for(i in 1:30){
@@ -138,7 +138,7 @@ for(i in 1:30){
   rm(model);gc()
 }
 
-#userº° Ã¹¹øÂ°, µÎ¹øÂ°, ¼¼¹øÂ° È®·ü ³ôÀº ¾ÆÀÌÅÛ ÀÎµ¦½º ÃßÃâ
+#userë³„ ì²«ë²ˆì§¸, ë‘ë²ˆì§¸, ì„¸ë²ˆì§¸ í™•ë¥  ë†’ì€ ì•„ì´í…œ ì¸ë±ìŠ¤ ì¶”ì¶œ
 ind1=apply(p.boost, 1, function(x) sort.int(t(x), index.return=TRUE, decreasing = T)$ix[1])
 ind2=apply(p.boost, 1, function(x) sort.int(t(x), index.return=TRUE, decreasing = T)$ix[2])
 ind3=apply(p.boost, 1, function(x) sort.int(t(x), index.return=TRUE, decreasing = T)$ix[3])
@@ -155,14 +155,14 @@ length(unique(ind2))
 length(unique(ind3))
 
 
-#Ç°¸ñº°·Î ±¸¸Å°¡´É¼º ³ôÀº ÀÏºÎ °í°´¿¡°Ô ÃßÃµ
+#í’ˆëª©ë³„ë¡œ êµ¬ë§¤ê°€ëŠ¥ì„± ë†’ì€ ì¼ë¶€ ê³ ê°ì—ê²Œ ì¶”ì²œ
 
-#Ä¿ÇÇÀü¹®Á¡, ¹éÈ­Á¡, Á¦°úÁ¡
+#ì»¤í”¼ì „ë¬¸ì , ë°±í™”ì , ì œê³¼ì 
 (sum(label.ts[sort.int(t(p.boost[,25]), index.return=TRUE, decreasing = T)$ix[1:7000],25]) +
     sum(label.ts[sort.int(t(p.boost[,9]), index.return=TRUE, decreasing = T)$ix[1:7000],9]) +
     sum(label.ts[sort.int(t(p.boost[,21]), index.return=TRUE, decreasing = T)$ix[1:7000],21])) / (7000*3)
 
-#½ÇÁ¦ ±¸¸Å °í°´¼ö
+#ì‹¤ì œ êµ¬ë§¤ ê³ ê°ìˆ˜
 sum(label.ts[,25], na.rm=T)
 sum(label.ts[,9], na.rm=T)
 sum(label.ts[,21], na.rm=T)
@@ -170,5 +170,76 @@ sum(label.ts[,21], na.rm=T)
 
 
 
-# Practice 2: Á÷Á¢ ÇØº¸¼¼¿ä!!
+# Practice 2: ì§ì ‘ í•´ë³´ì„¸ìš”!!
+rm(list=ls()) #objective ì •ë¦¬
+gc()
 insta <- read.csv("instacart.csv")
+
+
+
+#---------------------------------------------------------------------------------------------------#
+
+# Model -------------------------------------------------------------------
+head(insta)
+length(unique(insta$user_id)); length(unique(insta$product_id))
+
+#30% ê³ ê° ê²€ì¦ìë£Œë¡œ ì‚¬ìš©
+set.seed(1000)
+idx.ts<- sample(1:length(unique(insta$user_id)),length(unique(insta$user_id))*0.3 , replace=FALSE)
+idx.ts<- sort(idx.ts)
+
+#ìë£Œ (ê³ ê°, ìƒí’ˆ) ìŒì´ê¸° ë•Œë¬¸ì— indexê°€ ì•„ë‹ˆë¼ ê³ ê° ë²ˆí˜¸ ì €ì¥
+user.tr <- as.data.frame(unique(insta$user_id)[-idx.ts])
+user.ts <- as.data.frame(unique(insta$user_id)[idx.ts])
+colnames(user.tr)<- c("user_id")
+colnames(user.ts)<- c("user_id")
+
+library(dplyr)
+tr.mat <- insta %>% inner_join(user.tr, by='user_id')
+ts.mat <- insta %>% inner_join(user.ts, by='user_id')
+
+#xgboost ì„¤ì¹˜
+#install.packages("xgboost")
+library(xgboost)
+
+colnames(tr.mat)
+
+X <- xgb.DMatrix(as.matrix(tr.mat[,-c(1,2,37)]), label = tr.mat$reordered)
+model <- xgboost(data = X, max_depth=5, eta=0.1, nrounds = 200, objective="binary:logistic")
+
+importance <- xgb.importance(colnames(X), model = model)
+xgb.ggplot.importance(importance)
+
+
+# Apply model -------------------------------------------------------------
+test.mat <- xgb.DMatrix(as.matrix(ts.mat[,-c(1,2,37)]))
+ts.mat$fitted <- predict(model, test.mat)
+
+thres <- 0.2
+ts.mat$fitted.y <- ifelse(ts.mat$fitted > thres, 1, 0)
+
+Con.mat=table(Actual = ts.mat$reordered, Predicted = ts.mat$fitted.y)
+print(Con.mat)
+
+#accuracy
+sum(diag(Con.mat))/ sum(Con.mat)
+
+#---------- test setì˜ precision, recall, f1ë§Œë“¤ì–´ë³´ì ----------#
+table <- ts.mat %>% group_by(user_id) %>% summarize(den.rec = sum(reordered), 
+                                                    den.pre = sum(fitted.y), 
+                                                    nom = sum(reordered==1 & fitted.y==1))
+head(table)
+
+#noneì˜ˆì¸¡. ì‹¤ì œ 0, ì˜ˆì¸¡ 0ì´ë©´ ë¶„ì 1
+table <- table %>% mutate(nom=ifelse(den.rec==0 & den.pre==0, 1, nom), 
+                          den.pre=ifelse(den.pre==0, 1, den.pre), 
+                          den.rec = ifelse(den.rec==0, 1, den.rec))
+
+#precision and recall
+table <- table %>% mutate(precision = nom/den.pre, recall = nom/den.rec)
+
+#f1 score
+table <- table %>% mutate(f1 = ifelse(precision ==0 & recall==0, 0, 
+                                      2* precision * recall/(precision + recall)))
+#precision, recall ë‘˜ë‹¤ 0ì´ë©´ f1ë„ 0ìœ¼ë¡œ.
+print(mean(table$f1))
