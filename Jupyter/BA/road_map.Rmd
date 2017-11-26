@@ -1,0 +1,44 @@
+```{r}
+library(xlsx)
+data = read.xlsx('./data_set.xlsx', encoding = 'UTF-8', sheetIndex = 1)
+coord = read.csv('./road_coord.csv')
+coord = coord[,-1]
+```
+
+```{r}
+data = merge(data,coord, by = 'road_name')
+```
+
+```{r}
+library(ggmap)
+library(RColorBrewer)
+# 서울 기준 open street map 호출
+SeoulMap = qmap("seoul", zoom = 11, scale = 4, maptype = "toner-lite", source= 'stamen', legend = "topleft", extent = 'device', size = c(1280,1280))
+
+```
+```{r}
+data
+```
+
+```{r}
+kdata = kmeans(data[,2:23], centers = 4)
+```
+
+```{r}
+data = cbind(data,kdata$cluster)
+```
+
+
+```{r}
+map1 = SeoulMap +
+  geom_point(aes(x = x, y = y, col = kdata$cluster), data = data, size =4) + 
+  coord_equal()
+
+map1
+```
+
+```{r}
+mds = cmdscale(dist(data[-19,2:23]), k = 2)
+plot(mds, col = kdata$cluster)
+```
+
