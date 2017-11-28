@@ -28,11 +28,11 @@ kdata = kmeans(data[,2:23], centers = 4)
 data = cbind(data,kdata$cluster)
 ```
 
-
 ```{r}
 map1 = SeoulMap +
-  geom_point(aes(x = x, y = y, col = kdata$cluster), data = data, size =4) + 
+  geom_point(aes(x = x, y = y, col = kdata$cluster), data = coord_by_group, size =4) + 
   coord_equal()
+
 
 map1
 ```
@@ -42,3 +42,20 @@ mds = cmdscale(dist(data[-19,2:23]), k = 2)
 plot(mds, col = kdata$cluster)
 ```
 
+```{r}
+dongil = read.csv('동일로.csv')
+names(dongil) = c('y', 'x')
+dongil = arrange(dongil, desc(y))
+```
+
+
+```{r}
+map1 = SeoulMap +
+  #ggplot(aes(x = x, y = y), data = dongil, size =1) +
+  #geom_point(aes(x = x, y = y), data = dongil, size =1) + 
+  geom_path(aes(x = x, y = y), data = dongil, size =2) +
+  #geom_density2d(aes(x = y, y = x, alpha = 0), bins = 1, data = dongil) +
+  coord_equal()
+
+map1
+```

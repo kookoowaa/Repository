@@ -1,0 +1,139 @@
+```{r}
+
+setwd('d:/github/jupyter/BA')
+if(!require(cluster)){install.packages('cluster')}
+library(cluster)
+if(!require(ggfortify)){install.packages('ggfortify')}
+library(ggfortify)
+if(!require(ggplot2)){install.packages('ggplot2')}
+library(ggplot2)
+#도시화_패키지 용량 큼
+if(!require(factoextra)){install.packages('factoextra')}
+library(factoextra)
+library(FactoMineR)
+
+data <- read.csv('data.csv', header=T, stringsAsFactors = F)
+data <- data[,-c(8,9,10,11,12,13,14,15,22,23,24,25,26,27)]
+rowname <- data[,1]
+data <- data[,-1]
+row.names(data) = rowname[]
+data2 <- scale(data)
+```
+
+```{r}
+hc.single=hclust(dist(data2), method="single") # 단일연결 (최소 클러스터 간 비유사성)
+
+hc.average=hclust(dist(data2), method="average")  # 평균연결 ( 평균 클러스터간 비유사성)
+
+hc.complete=hclust(dist(data2), method="complete")# 완전연결 ( 최대 클러스터간 비유사성)
+
+hc.ward=hclust(dist(data2), method="ward.D") # Ward (군집 내 유사성)
+
+
+# 단일연결 클러스터 덴드로그램
+plot(hc.single, main = 'Average linkage Clustering')
+
+# 완전연결 클러스터 덴드로그램 
+plot(hc.complete, main = 'Complete linkage Clustering') 
+
+# 평균연결 클러스터 덴드로그램
+plot(hc.average, main = 'Average linkage Clustering')
+
+# Ward 클러스터링 덴드로그램
+plot(hc.ward, main = 'Ward linkage Clustering')
+
+
+# 덴드로그램 절단
+x <- cutree(hc.complete, 4) # 완전연결 기준
+table(x)
+
+# kmeans
+set.seed(1) # seed 조정 필요
+kmeans1 <- kmeans(as.matrix(data2), centers = 4)
+table(kmeans1$cluster) # 클러스터 수
+autoplot(kmeans1, data = data2, label = TRUE, label.size = 4, frame = TRUE) # kmeans_autoplot
+
+# k-means for Fviz Package
+#fviz_cluster(kmeans1, data = df,
+#             palette = c("#00AFBB","#2E9FDF", "#E7B800", "#FC4E07"),
+#             ggtheme = theme_minimal(),
+#             main = "Partitioning Clustering Plot") #fviz_cluster이용 도시화
+```
+
+```{r}
+# MDS
+mds = cmdscale(dist(data2), k = 4)
+plot(mds, col = kmeans1$cluster) # MDS plot, 색상 kmeans clustering
+
+## clustering plot 
+b = autoplot(pam(data2, 3), frame = TRUE, frame.type = 'norm') # Partitioning Around Medoids_겹침
+b
+
+library(data.table) 
+library(lattice)
+
+## PCA
+pca <- prcomp(data2, scale. = TRUE)
+plot(pca, type='l')
+summary(pca)
+autoplot(pca, loadings = TRUE, loadings.label = TRUE, data = data2) #PCA_Auto plot
+
+# 각 변수 상관관계
+cor = cor(data2)
+rgb.palette <- colorRampPalette(c("white", "blue"), space = "rgb")
+levelplot(cor, main="Continous data of data correlation matrix", xlab="", ylab="", col.regions=rgb.palette(120), cuts=300, at=seq(-1,1,0.05))
+
+#PCA 도시화_패키지 용량 큼
+library(factoextra)
+library(FactoMineR)
+c <- pam(data2, 4)
+fviz_cluster(c, frame.alpha = 0.1, frame.level = 0.2) # Partitioning Around Medoids_겹침
+
+res.pca <- PCA(data2,  graph = FALSE)
+get_eig(res.pca)
+fviz_screeplot(res.pca, addlabels = TRUE, ylim = c(0, 50)) # PCA_Scree plot
+
+var <- get_pca_var(res.pca)
+
+# Coordinates of variables
+head(var$coord) # 성분 별 변수 좌표
+
+# Contribution of variables
+head(var$contrib) #성분 별 변수 기여도
+
+# Graph of variables: default plot
+fviz_pca_var(res.pca, col.var = "black")
+
+# Control variable colors using their contributions # 기여도에 따른 주성분 방향
+fviz_pca_var(res.pca, col.var="contrib",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE # Avoid text overlapping
+)
+
+# Contributions of variables to PC1
+fviz_contrib(res.pca, choice = "var", axes = 1, top = 10)
+# Contributions of variables to PC2
+fviz_contrib(res.pca, choice = "var", axes = 2, top = 10)
+
+# Extract the results for individuals
+ind <- get_pca_ind(res.pca)
+ind
+
+# Coordinates of individuals
+head(ind$coord)
+
+# Graph of individuals
+# 1. Use repel = TRUE to avoid overplotting
+# 2. Control automatically the color of individuals using the cos2
+# cos2 = the quality of the individuals on the factor map
+# Use points only
+# 3. Use gradient color
+fviz_pca_ind(res.pca, col.ind = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE # Avoid text overlapping (slow if many points)
+)
+
+# Biplot of individuals and variables_PCA 좌표계(정리)
+fviz_pca_biplot(res.pca, repel = TRUE)
+```
+

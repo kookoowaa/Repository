@@ -1,0 +1,46 @@
+```{r}
+library(xlsx)
+setwd('d:/github/jupyter/BA')
+data = read.xlsx('./data_set.xlsx', encoding = 'UTF-8', sheetIndex = 1)
+coordinates = read.csv('./coordinates.csv', encoding = 'utf-8')
+names(coordinates) = c('road_ID','Y','X')
+
+```
+
+```{r}
+
+```
+
+```{r}
+coord_group = coordinates[1,]
+for(i in c(1:34,36:44)){
+  coord_group = rbind(coord_group, coordinates[coordinates$road_ID==data$road_ID[i],])
+}
+coord_group = coord_group[-1,]
+#write.csv(coord_group,'cg.csv')
+```
+
+```{r}
+library(ggmap)
+library(RColorBrewer)
+# 서울 기준 open street map 호출
+SeoulMap = qmap("seoul", zoom = 11, scale = 4, maptype = "toner-lite", source= 'stamen', legend = "topleft", extent = 'device', size = c(1280,1280))
+
+```
+
+```{r}
+map1 = SeoulMap +
+  #ggplot(aes(x = x, y = y), data = dongil, size =1) +
+  geom_point(aes(x = X, y = Y), data = coord_group,  size =1, color = coord_group$road_ID) + 
+  
+  #geom_path(aes(x = X, y = Y), data = coord_group[coord_group$road_ID==3005060,],  size =1) +
+  #geom_density2d(aes(x = y, y = x, alpha = 0), bins = 1, data = dongil) +
+  coord_equal()
+
+map1
+```
+
+```{r}
+table(coord_group$road_ID)
+```
+
