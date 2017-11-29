@@ -1,0 +1,19 @@
+```{r}
+library(rvest)
+library(stringr)
+url  = 'http://tv.naver.com/cjenm.reply1988'
+main = read_html(url)
+```
+
+```{r}
+temp = main %>% html_nodes('.cds_info') %>% html_nodes('.title') %>% html_text()
+temp
+
+```
+
+```{r}
+titles = str_trim(temp)
+titles
+
+```
+

@@ -1,0 +1,74 @@
+```{r}
+movies = read.csv('D:\\data_mining_DB\\movies.csv', stringsAsFactors = F)
+str(movies)
+```
+
+```{r}
+ratings = read.csv('D:\\data_mining_db\\ratings.csv')
+str(ratings)
+```
+
+```{r}
+library(reshape2)
+ratingmat = dcast(ratings, userId~movieId, value.var = 'rating', na.rm = F)
+ratingmat = as.matrix(ratingmat[,-1])
+```
+
+```{r}
+library(ggplot2)
+image(ratingmat, main = "Raw Ratings")
+```
+
+```{r}
+library(recommenderlab)
+#Coerce the rating matrix into a recommenderlab sparse matrix
+ratingmat <- as(ratingmat, "realRatingMatrix")
+```
+
+```{r}
+#Normalize the data
+ratingmat_norm <- normalize(ratingmat)
+```
+
+
+
+
+
+```{r}
+#Create Recommender Model. 
+#        UBCF: User-based collaborative filtering
+#        IBCF: Item-based collaborative filtering
+#        Parameter 'method' decides similarity measure: Cosine or Jaccard
+
+# Here we use UBCF, cosine similarity, nearest neighbors = 30
+recommender_model = Recommender(ratingmat_norm, method = "UBCF", param=list(method="Cosine",nn=30))
+
+# other methods
+#recommender_model = Recommender(ratingmat_norm, method = "UBCF", param=list(method="Jaccard",nn=30))
+#recommender_model = Recommender(ratingmat_norm, method = "IBCF", param=list(method="Jaccard",nn=30))
+#recommender_model = Recommender(ratingmat_norm, method = "POPULAR")
+
+
+recom = predict(recommender_model, ratingmat[1], n=10) #Obtain top 10 recommendations for 1st user in dataset
+recom_list = as(recom, "list") #convert recommenderlab object to readable list
+```
+
+```{r}
+# Obtain recommendations
+recom_num = NULL
+recom_title = NULL
+recom_genre = NULL
+for (i in c(1:10)){
+ recom_num = c(recom_num,  movies[as.integer(recom_list[[1]][i]),1])
+ recom_title = c(recom_title,  movies[as.integer(recom_list[[1]][i]),2])
+ recom_genre = c(recom_genre,  movies[as.integer(recom_list[[1]][i]),3])
+ }
+myrecom = data.frame(recom_num,recom_title, recom_genre)
+cat('Recommendation for the user \n')
+print(myrecom)
+```
+
+```{r}
+unique(ratings$userId)
+```
+
