@@ -1,0 +1,8 @@
+<html>
+<head>
+<!--<?xml version="1.0" encoding="UTF-8"?><WISPAccessGatewayParam xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.acmewisp.com/WISPAccessGatewayParam.xsd">	<Redirect>		<AccessProcedure>1.0</AccessProcedure>		<AccessLocation>QookNShow</AccessLocation>		<LocationName>QookNShow</LocationName>		<LoginURL>https://first.wifi.olleh.com/webauth/wispr/login.php?ip=175.198.100.26&mac=7c67a2c4a85b</LoginURL>		<MessageType>100</MessageType>		<ResponseCode>0</ResponseCode>	</Redirect></WISPAccessGatewayParam>--> 
+	<script>
+	 location.href = "http://first.wifi.olleh.com/webauth/redirection.php?ip=175.198.100.26&mac=7c67a2c4a85b&url=http://biogeo.ucdavis.edu&ssid=KT_Free_WiFi&ap_mac=00300dc7077f&apmodel=MW-6900AP";
+	</script>
+</head>
+</html>

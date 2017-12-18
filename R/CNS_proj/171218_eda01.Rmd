@@ -1,0 +1,165 @@
+```{r}
+s15 = read.csv('d:/cns_data/sales_2015.csv')
+s16 = read.csv('d:/cns_data/sales_2016.csv')
+```
+
+```{r}
+p15 = unique(s15$자재코드)
+p16 = unique(s16$자재코드)
+
+```
+
+```{r}
+prod = p15[p15 %in% p16]
+```
+
+```{r}
+s151 = s15[s15$년월일.1>20150630,]
+```
+
+```{r}
+table(unique(s151$자재코드) %in% p16)
+```
+
+```{r}
+length(prod)
+```
+
+```{r}
+rd1 = rd[rd$자재코드 %in% prod, ]
+```
+
+```{r}
+aggr = rd1 %>%group_by(prod_num = 자재코드, BM) %>% summarize(prod_name = 제품명[1], volume = sum(판매수량), sales = sum(매출액))
+
+aggr = aggr %>% arrange(desc(sales))
+
+write.csv(aggr, 'd:/cns_data/aggr.csv')
+
+```
+```{r}
+aggr = aggr %>% arrange(desc(sales))
+aggr_by_sales = aggr$prod_num[1:(0.5*length(aggr$prod_num))]
+aggr = aggr %>% arrange(desc(volume))
+aggr_by_volume = aggr$prod_num[1:(0.5*length(aggr$prod_num))]
+
+aggr1 = aggr[aggr$prod_num %in% aggr_by_sales[aggr_by_sales %in% aggr_by_volume],]
+write.csv(aggr1, 'd:/cns_data/aggr1.csv')
+```
+
+
+```{r}
+rd1 = rd1[!is.na(rd1$자재코드),]
+```
+
+```{r}
+length(unique(rd[rd$분석대상=='Y',]$자재코드))
+
+length(unique(rd1$자재코드))
+
+length(unique(aggr1$prod_num))
+
+arrange(rd, desc(년월일.1))
+```
+
+```{r}
+table(unique(aggr1$prod_num) %in% unique(rd[rd$분석대상=='Y',]$자재코드) )
+
+table(unique(rd[rd$분석대상=='Y',]$자재코드) %in% unique(aggr1$prod_num) )
+
+
+```
+
+```{r}
+aggr_y = rd[rd$분석대상=='Y',] %>% group_by(prod_num = 자재코드, BM) %>% summarize(prod_name = 제품명[1], volume = sum(판매수량), sales = sum(매출액))
+
+aggr_y = aggr_y %>% arrange(sales)
+
+aggr_y
+```
+
+```{r}
+raw_data = rd[rd$자재코드 %in% uniq_prod_num, -1]
+
+promo = strsplit(as.character(raw_data$할인행사여부), ' ')
+
+promo1 = list()
+
+for (i in 1:length(promo)){
+  promo1[i] = promo[[i]][2]
+}
+promo1 = as.factor(unlist(promo1))
+
+raw_data$할인행사여부 = promo1
+
+rm('promo', 'promo1')
+
+write.csv(raw_data, 'd:/cns_data/raw_data.csv')
+```
+
+
+
+
+
+```{r}
+raw_data = read.csv('d:/cns_data/raw_data.csv')[,-1]
+raw_data$년월일 = as.Date(as.character(raw_data$년월일), format = "%Y%m%d")
+table(raw_data)
+```
+```{r}
+library(dplyr)
+aggr_by_date = raw_data %>% group_by(년월일) %>% summarize(volume = sum(판매수량), sales = sum(매출액))
+aggr_by_date
+aggr_by_date$년월일 = as.Date(as.character(aggr_by_date$년월일), format = '%Y%m%d')
+```
+
+```{r}
+library(ggplot2)
+```
+
+```{r}
+ggplot(data = aggr_by_date)+
+  geom_line(aes(x = 년월일, y = sales))
+
+```
+
+```{r}
+c(min(aggr_by_date$volume), max(aggr_by_date$volume))
+```
+
+```{r}
+barplot(table(raw_data$할인행사여부), col = c(3,4))
+
+```
+
+```{r}
+table(raw_data$브랜드)
+
+c(length(table(raw_data$브랜드)), min(table(raw_data$브랜드)), max(table(raw_data$브랜드)))
+```
+
+```{r}
+table(raw_data$라인)
+
+c(length(table(raw_data$라인)), min(table(raw_data$라인)), max(table(raw_data$라인)))
+```
+
+```{r}
+table(raw_data$유형)
+
+c(length(table(raw_data$유형)), min(table(raw_data$유형)), max(table(raw_data$유형)))
+```
+
+```{r}
+aggr_by_prod = raw_data %>% group_by(자재코드) %>% summarize(prod_name = 제품명[1], volume = sum(판매수량), sales = sum(매출액))
+aggr_by_prod %>% arrange(desc(sales))
+aggr_by_prod %>% arrange(desc(volume))
+
+```
+
+```{r}
+table(raw_data$BM)
+
+c(length(table(raw_data$BM)), min(table(raw_data$BM)), max(table(raw_data$BM)))
+```
+
