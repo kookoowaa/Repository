@@ -1,0 +1,66 @@
+```{r}
+library(dplyr)
+raw_data = read.csv('d:/cns_data/raw_data.csv')[,-1]
+raw_data$년월일 = as.Date(as.character(raw_data$년월일), format = "%Y%m%d")
+raw_data
+```
+
+```{r}
+promo = read.csv('d:/cns_data/promotion.csv')
+promo = promo[promo$프로모션종료일>=20150101,]
+promo = promo[,-c(5,6)]
+promo$프로모션시작일 = as.Date(as.character(promo$프로모션시작일), format = "%Y%m%d")
+promo$프로모션종료일 = as.Date(as.character(promo$프로모션종료일), format = "%Y%m%d")
+promo
+```
+
+```{r}
+raw_data$프로모션정보 = NA
+raw_data$프로모션명칭 = NA
+raw_data$할인내용 = NA
+raw_data
+
+promo$프로모션정보 = as.character(promo$프로모션정보)
+promo$프로모션명칭 = as.character(promo$프로모션명칭)
+promo$할인내용 = as.character(promo$할인내용)
+promo = promo[complete.cases(promo),]
+
+
+
+```
+
+
+```{r}
+
+
+
+for (n in unique(promo$자재코드[promo$자재코드 %in% raw_data$자재코드])[86:1780])
+  {
+  x = raw_data[raw_data$자재코드==n,]
+  y = promo[promo$자재코드==n,]
+  ptm <- proc.time()
+  print(paste(which(n==unique(promo$자재코드[promo$자재코드 %in% raw_data$자재코드])),'/ 1780'))
+  
+  for(i in 1:nrow(x))
+    {
+    for (m in 1:nrow(y))
+      {
+      if (x[i,1] >= y[m,3] & x[i,1] <= y[m,4])
+        {
+        x[i,]$프로모션정보 = as.character(y[m,]$프로모션정보)
+        x[i,]$프로모션명칭 = as.character(y[m,]$프로모션명칭)
+        x[i,]$할인내용 = as.character(y[m,]$할인내용)
+        raw_data[raw_data$자재코드==n,][i,] = x[i,]
+        }
+      }
+    }
+  el.time <- proc.time() - ptm
+  print(el.time)
+  }
+#459번까지 완료
+
+```
+```{r}
+unique(raw_data$프로모션정보)
+```
+
