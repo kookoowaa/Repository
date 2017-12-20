@@ -34,7 +34,7 @@ promo = promo[complete.cases(promo),]
 
 
 
-for (n in unique(promo$자재코드[promo$자재코드 %in% raw_data$자재코드])[86:1780])
+for (n in unique(promo$자재코드[promo$자재코드 %in% raw_data$자재코드])[459:1780])
   {
   x = raw_data[raw_data$자재코드==n,]
   y = promo[promo$자재코드==n,]
@@ -60,7 +60,43 @@ for (n in unique(promo$자재코드[promo$자재코드 %in% raw_data$자재코�
 #459번까지 완료
 
 ```
+
 ```{r}
-unique(raw_data$프로모션정보)
+length(sort(unique(raw_data$프로모션정보)))
+190+163
 ```
+
+
+```{r}
+table(raw_data$할인행사여부)
+raw_data %>% group_by(할인행사여부) %>% summarize(sales = sum(매출액), vol = sum(판매수량)) %>% mutate(sales/vol)
+```
+```{r}
+raw_data$프로모션정보 =as.factor(raw_data$프로모션정보)
+raw_data$프로모션명칭 =as.factor(raw_data$프로모션명칭)
+raw_data$할인내용 =as.factor(raw_data$할인내용)
+```
+```{r}
+raw_data %>% filter(is.na(프로모션정보))
+```
+
+```{r}
+unique(raw_data$프로모션명칭)
+```
+
+```{r}
+raw_data %>% group_by(자재코드) %>% tally() %>% arrange(desc(n))
+```
+```{r}
+miin = raw_data %>% filter(자재코드 == 30100095)
+```
+
+```{r}
+plot(x = miin$년월일, y = miin$매출액, col= miin$할인행사여부)
+```
+
+```{r}
+raw_data$매출액
+```
+
 
