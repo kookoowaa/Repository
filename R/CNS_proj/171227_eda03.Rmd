@@ -1,0 +1,157 @@
+```{r}
+library(dplyr)
+rd = read.csv('d:/cns_data/raw_data_dt.csv')
+```
+
+```{r}
+rd %>% filter(volume >0) %>% filter(sales<0) %>% arrange(desc(volume))
+```
+
+```{r}
+rd %>% filter(volume <0) %>% filter(sales>0) %>% arrange(desc(sales))
+```
+
+```{r}
+rd %>% distinct(brand)
+```
+
+```{r}
+raw_data = rbind(read.csv('d:/cns_data/sales_2015.csv'), read.csv("d:/cns_data/sales_2016.csv"))
+```
+
+```{r}
+cosmetic_vs = raw_data %>% group_by(UPC = 자재코드) %>% summarize(v = sum(판매수량), s = sum(매출액))
+```
+```{r}
+
+cosmetic_v = arrange(cosmetic_vs,desc(v))
+cosmetic_s = arrange(cosmetic_vs,desc(s))
+```
+
+```{r}
+UPC_v = cosmetic_v$UPC[1:(0.1*nrow(cosmetic_v))]
+UPC_s = cosmetic_s$UPC[1:(0.1*nrow(cosmetic_s))]
+```
+
+```{r}
+top_10pct_UPC = UPC_v[UPC_v %in% UPC_s]
+```
+
+```{r}
+rd
+```
+
+```{r}
+rd2 = rd %>% filter(UPC %in% top_10pct_UPC)
+```
+
+```{r}
+rd2 %>% filter(BM == '스페셜')
+```
+
+```{r}
+rd3$date = as.Date(rd3$date)
+upc = rd3 %>% group_by(UPC) %>% tally() %>% arrange(desc(n))
+for(i in 1:nrow(upc)){
+  upc[i,3] = as.Date(unclass(rd3 %>% filter(UPC==unclass(upc[i,1])) %>% summarize(min(date)))$'min(date)',origin="1970-01-01")
+  #upc[i,3] = as.Date(unclass(upc[i,3])$dates,origin="1970-01-01")
+  upc[i,4] = as.Date(unclass(rd3 %>% filter(UPC==unclass(upc[i,1])) %>% summarize(max(date)))$'max(date)',origin="1970-01-01")
+  #upc[i,4] = as.Date(upc[i,3],origin="1970-01-01")
+  upc[i,5] = upc[i,4]-upc[i,3]+1
+  }
+upc$V3 = as.Date(upc$V3, origin = '1970-01-01')
+upc$V4 = as.Date(upc$V4, origin = '1970-01-01')
+upc = upc %>% mutate(if_else(V4.1>n,'F','T'))
+upc = upc[,c(1,6,2:5)]
+colnames(upc)[2:6] = c('test', 'n', 'start', 'end', 'duration')
+
+upc$unique_dates = NA
+for (i in 1:nrow(upc)){
+  a = rd3 %>% filter(UPC == unclass(upc[i,1])$UPC)
+  upc[i,7] = length(unique(a$date))
+  upc[i,2] = if_else(upc[i,3]==upc[i,6] & upc[i,6]==upc[i,7], 'T', 'F')
+  rm(a)
+}
+
+
+upc
+
+#write.csv(upc, 'd:/cns_data/upc_durations.csv')
+#upc %>% filter(n==duration)
+target_upc = upc %>% filter(test =='T', duration ==609) %>% select(UPC)
+```
+
+```{r}
+rd3 = rd2 %>% filter(UPC %in% unlist(target_upc))
+```
+
+```{r}
+write.csv(rd3 , 'd:/cns_data/raw_data(161).csv')
+```
+
+```{r}
+rd3
+```
+
+```{r}
+rd3 %>% distinct(prod_name)
+```
+```{r}
+rd3 = read.csv('d://cns_data/raw_data(161).csv')[,-1]
+rd3
+```
+
+```{r}
+library(stringr)
+
+rd3 %>% mutate(brand = str_extract(as.character(prod_name),'[A-Z가-힣]*'))
+```
+
+```{r}
+upc = rd3 %>% group_by(UPC, prod_name, line, BM, type) %>% tally()
+multi_upc = upc %>% group_by(UPC) %>% summarize(n = n()) %>% filter(n!=1) %>% select(UPC)
+multi_upc = upc %>% filter(UPC %in% unlist(multi_upc))
+```
+
+```{r}
+upc = rd3 %>% group_by(UPC) %>% summarize(prod_name = prod_name[3], line = line[3], BM = BM[3], type = type[3]) 
+upc = upc %>% mutate(line = str_replace(as.character(line),'^신',''))
+upc = upc %>% mutate(prod_name = str_replace(as.character(prod_name),'^신',''))
+upc = upc %>% mutate(brand = str_extract(as.character(prod_name),'[A-z가-힣]*'))
+
+a = upc %>% filter(!str_detect(brand, '^[A-z]+'), brand!='미인도') %>% filter(str_detect(line, 'TFS')) %>% select(UPC)
+upc[upc$UPC %in% unlist(a),6] ='TFS'
+
+upc %>% filter(!str_detect(brand, '^[A-z]+'), brand!='미인도', !str_detect(brand, '네오'))
+
+a = upc %>% filter(!str_detect(brand, '^[A-z]+' ), brand!='미인도', ) %>% filter(str_detect(line, '클렌징.허브데이')) %>% select(UPC)
+upc[upc$UPC %in% unlist(a),6] ='TFS'
+
+a = upc %>% filter(!str_detect(brand, '^[A-z]+' ), brand!='미인도', ) %>% filter(str_detect(line, '네이처가든')) %>% select(UPC)
+upc[upc$UPC %in% unlist(a),6] ='TFS'
+
+upc = upc %>% mutate(prod_name = str_replace(as.character(prod_name),'^헤어.',''))
+
+a = upc %>% filter(!str_detect(brand, '^[A-z]+' ), brand!='미인도', ) %>% filter(str_detect(line, '헤어')) %>% mutate(brand = str_extract(as.character(prod_name), '[A-Z]*')) %>% select(UPC, brand)
+a
+
+
+merge(upc, a, by = a)  %>% filter(str_detect(line, '헤어'))
+
+upc  %>% filter(str_detect(line, '헤어'))
+```
+
+```{r}
+rd3 %>% filter(UPC == 30400352)
+```
+
+```{r}
+upc1 = upc %>% mutate(brand = str_extract(as.character(line),'[A-z]*'))
+upc1 = upc1 %>% mutate(brand = str_extract(as.character(line),'[가-힣]*'))
+
+upc %>% mutate(line = str_replace(as.character(line),'^신',''))
+upc %>% mutate(prod_name = str_replace(as.character(prod_name),'^신',''))
+
+write.csv(upc, 'd:/cns_data/upc.csv')
+```
+

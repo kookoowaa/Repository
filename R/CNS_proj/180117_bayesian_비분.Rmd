@@ -1,0 +1,149 @@
+```{r}
+library(dplyr)
+```
+
+
+```{r}
+
+rd = read.csv('d:/cns_data/(180117)modeling_data.csv', stringsAsFactors = F)
+rdd = read.csv('d:/cns_data/modeling_data_without_dummy.csv', stringsAsFactors = F)
+nh = read.csv('d:/cns_data/national_holiday.csv', stringsAsFactors = F)
+
+```
+
+
+
+```{r}
+
+rd
+rd_train = rd[as.integer(as.Date.character(rd$date))%%3==0,]
+#rd_test = rd[as.integer(rd$date)%%3!=0,]
+rd_test = rd[as.Date.character(rd$date)>as.Date('2016-06-09'),]
+```
+
+```{r}
+rd_train1 = rd_train[,-c(1,2,4, 7:9)]
+rd_train1
+
+rd_train1[rd_train1$volume<=0, ]$volume = 0.1
+rd_lm = lm(log(volume)~., data = rd_train1)
+```
+
+```{r}
+rd_test
+rd_test1 = rd_test[,-c(1,2,4)]
+```
+
+```{r}
+a = mutate(rd_test1, prediction = exp(predict(rd_lm, newdata = rd_test1))) %>% select(volume, prediction) %>% mutate(PE = (volume-prediction)/volume*100)
+
+a = a %>% filter(volume!=0)
+
+a
+
+sum(a$PE)/nrow(a)
+```
+
+```{r}
+single_test = rd_test %>% filter(UPC==32900539)
+single_train = rd_train %>% filter(UPC==32900539)
+
+single_lm = lm(log(volume)~., data = single_train[,-c(1,2,4,7:9)])
+
+
+mutate(single_test, prediction = exp(predict(single_lm, newdata = single_test[,-c(1:4,7:9)]))) %>% select(volume, prediction) %>% mutate(mape = abs((volume-prediction))/volume) %>% summarize(sum(mape)/83)
+```
+
+```{r}
+library(glmnet)
+grid = seq(5,1, length.out = 200)
+single_ridge = cv.glmnet(x = as.matrix(single_train[,-c(1,2,3, 4,7:9)]), y = log(single_train[,3]), alpha = 0, lambda = grid)
+best_lambda = single_ridge$lambda.min
+
+
+mutate(single_test, prediction = unlist(as.data.frame(exp(predict(single_ridge, newx = as.matrix(single_test[,-c(1:4,7:9)])))))) %>% select(volume, prediction) %>% mutate(mape = abs((volume-prediction))/volume) %>% summarize(sum(mape)/83)
+       
+       
+```
+
+```{r}
+#library(xgboost)
+
+#library(gclus)
+#library(gbm)
+
+
+#for(i in 1:ncol(single_train)){single_train[,i]=as.numeric(single_train[,i])}
+
+
+
+single_boost = gbm(log(volume)~., data =single_train[,-c(1,2, 4,7:9)], distribution="gaussian",
+              n.trees=1000,shrinkage=0.01, interaction.depth=3)
+
+
+mutate(single_test, prediction = unlist(as.data.frame(exp(predict(single_boost, n.trees=1000, newdata = single_test[,-c(1:4,7:9)]))))) %>% select(volume, prediction) %>% mutate(mape = abs((volume-prediction))/volume) %>% summarize(sum(mape)/83)
+
+```
+
+```{r}
+library(randomForest)
+
+
+single_rf = randomForest(log(volume)~., data =single_train[,-c(1,2, 4,7:9)], mtry = 3, ntree = 25)
+
+
+mutate(single_test, prediction = unlist(as.data.frame(exp(predict(single_rf, newdata = single_test[,-c(1:4,7:9)]))))) %>% select(volume, prediction) %>% mutate(mape = abs((volume-prediction))/volume) %>% summarize(sum(mape)/83)
+
+
+```
+
+```{r}
+X <- as.matrix(rd_train1[,-1])
+Y <- as.matrix(rd_train1[,1])
+beta0=rep(0,ncol(X)); Sigma0inv=diag(rep(1,ncol(X))); u=1; v=1  # prior
+  
+Gibbs_REG=function(beta0, Sigma0inv, u, v, X, Y, iter, burnin, thinning){
+  k=ncol(X)
+  n=nrow(X)
+  XtX=t(X)%*%X
+  
+  betas=matrix(0,nrow=iter,ncol=k)
+  taus=numeric(iter)
+  beta=coefficients(lm(Y~X-1)) # initial values 
+  
+  for(i in 1:iter){
+    taus[i]=tau=rgamma(1,u+n/2,v+sum((Y-X%*%beta)*(Y-X%*%beta))/2)
+    Sigma=solve(Sigma0inv+tau*XtX)
+    betas[i,]=beta=Sigma%*%(Sigma0inv%*%beta0+tau*t(X)%*%Y)+
+                                  matrix(rnorm(k)%*%chol(Sigma),ncol=1)
+  }
+  betas=betas[-(1:burnin),] # burn-in
+  betas=betas[1:((iter-burnin)/thinning)*thinning,] # thinning
+  taus=taus[-(1:burnin)]
+  taus=taus[1:((iter-burnin)/thinning)*thinning]
+  list(beta=betas,tau=taus)
+}
+res=Gibbs_REG(beta0,Sigma0inv,u,v,X,Y,20000,10000,10)
+beta=res$beta
+tau=res$tau
+
+par(mfrow=c(2,2))
+plot(beta[,1],type="l",main="Trace plot",ylab=names(data)[3])
+acf(beta[,1],main="Autocorrelation function")
+plot(beta[,2],type="l",main="Trace plot",ylab=names(data)[4])
+acf(beta[,2],main="Autocorrelation function")
+
+plot(beta[,3],type="l",main="Trace plot",ylab=names(data)[5])
+acf(beta[,3],main="Autocorrelation function")
+plot(beta[,4],type="l",main="Trace plot",ylab=names(data)[6])
+acf(beta[,4],main="Autocorrelation function")
+
+par(mfrow=c(1,2))
+plot(tau,type="l",main="Trace plot",ylab="tau")
+acf(tau,main="Autocorrelation function")
+```
+
+```{r}
+summary(res)
+```
+

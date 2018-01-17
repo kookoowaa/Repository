@@ -1,0 +1,54 @@
+```{r}
+library(dplyr)
+library(stringr)
+
+rd = read.csv('d:/cns_data/raw_data(161).csv', stringsAsFactors = F) [,-1]
+upc = read.csv('d:/cns_data/upc(161).csv', stringsAsFactors = F)[,-1]
+```
+
+```{r}
+upc = upc[,-3]
+upc
+```
+
+```{r}
+a = upc %>% filter(category == '기능성') %>% filter(str_detect(type,'남성')) %>% select(UPC) %>% unlist()
+upc[upc$UPC %in% a,6] = '남성'
+```
+
+```{r}
+
+upc %>% group_by(type) %>% tally()
+```
+
+```{r}
+upc %>% filter(category == '기능성') %>% arrange(desc(unit.p))
+```
+
+```{r}
+rd = mutate(rd, brand = apply(rd, 1, function(x){upc[upc$UPC==x[2],5]}))
+rd = mutate(rd, category = apply(rd, 1, function(x){upc[upc$UPC==x[2],6]}))
+colnames(rd)[15] = 'membership'
+rd
+```
+
+```{r}
+by_cat = rd %>% group_by(category) %>% summarize(n = n(), s = sum(sales), v = sum(volume), sv = as.integer(s/v))
+```
+
+```{r}
+by_cat_s = scale(by_cat[,-1])
+```
+
+```{r}
+by_cat %>% mutate(cluster = kmeans(by_cat_s, 3)$cluster) 
+```
+
+```{r}
+promotion = rd %>% distinct(promotion, promo_info, promo_title, promo_detail, membership)
+```
+
+```{r}
+promotion %>% filter(str_detect(promo_title, '\\+'))
+```
+

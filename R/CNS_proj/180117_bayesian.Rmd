@@ -1,0 +1,61 @@
+```{r}
+library(dplyr)
+
+
+
+rd = read.csv('d:/cns_data/(180117)modeling_data.csv', stringsAsFactors = F)
+rd
+rd %>% filter(volume==0)
+rd[rd$volume==0,]$volume=0.1
+
+rd %>% group_by(UPC) %>% tally()
+```
+
+
+```{r}
+# Bayesian Hierarchical Regression
+
+
+library(bayesm)
+#if(nchar(Sys.getenv("LONG_TEST")) != 0) {R=2000} else {R=10}
+R=10000
+burnin1=5000  # number of inital draws to be discarded 처음 5000개 제외
+#Z=rep(1,ns) 
+#nz=ncol(Z)
+#Delta=matrix(c(0,0,0),ncol=1)
+#Delta=t(Delta) # first row of Delta is means of betas
+
+#iota=c(rep(1,nobs))
+regdata=NULL
+ns = length(unique(rd$UPC)[1:3])
+
+
+for (k in 1:ns) {
+  nobs = nrow(rd[rd$UPC==unique(rd$UPC)[k],])
+  iota = c(rep(1,nobs))
+  X = as.matrix(cbind(iota,rd[rd$UPC==unique(rd$UPC)[k],-c(1:4,7:9)]))
+  y = log(rd[rd$UPC==unique(rd$UPC)[k],3])
+  regdata[[k]]=list(y=y,X=X) }
+
+#Data1=list(regdata=regdata,Z=Z)
+Data1=list(regdata=regdata)
+Mcmc1=list(R=R,keep=1)
+
+#Prior1=list(Deltabar=Delta,A=0.01*diag(1),nu.e=3,ssq=rep(0.06,ns),nu=6,V=6*0.1*diag(3)) 
+#out=rhierLinearModel(Data=Data1,Prior=Prior1, Mcmc=Mcmc1)
+out=rhierLinearModel(Data=Data1, Mcmc=Mcmc1)    # 실제 regression
+cat("Summary of Delta draws",fill=TRUE)
+summary(out$Deltadraw)
+cat("Summary of Vbeta draws",fill=TRUE)
+summary(out$Vbetadraw)
+
+```
+
+```{r}
+tempb1 = out$betadraw[,2,(burnin1+1):10000]
+tempb2 = out$betadraw[,3,(burnin1+1):10000]
+betaout = cbind(storenum,rowMeans(tempb1),apply(tempb1,1,sd),rowMeans(tempb2),apply(tempb2,1,sd))
+colnames(betaout)=c("store","mean b_price", "sd b_price","mean b_romo","sd b_promo")
+print(betaout)
+```
+

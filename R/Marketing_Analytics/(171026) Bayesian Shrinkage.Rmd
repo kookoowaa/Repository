@@ -40,7 +40,7 @@ for (k in 1:ns){
 #  print(summary(tempb))
 }
 betaout0 = cbind(storenum,b[,2],bse[,2],b[,3],bse[,3])
-colnames(betaout0)=c("store","b_price", "se b_price","b_romo","se b_promo")
+colnames(betaout0)=c("store","b_price", "se b_price","b_promo","se b_promo")
 betaout0
 ```
 
