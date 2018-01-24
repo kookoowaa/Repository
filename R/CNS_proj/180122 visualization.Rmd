@@ -1,0 +1,105 @@
+```{r}
+library(dplyr) ; library(stringr); library(ggplot2); library(reshape2)
+```
+```{r}
+label_ko_num = function(num) {
+  ko_num = function(x) {
+    new_num = x %/% 10000
+    return(paste(new_num, '만', sep = ''))
+  }
+  # vapply를 쓰고 싶지만 가끔 문자열대신 NA가 출력되는 경우도 있으니 
+  # 여기서는 간단하게 sapply를 적용
+  return(sapply(num, ko_num))
+}
+```
+
+
+```{r}
+rm(list=ls())
+
+rd = read.csv('d:/cns_data/modeling_data_in_factor.csv')
+rd = rd[,-1]
+rd$date = as.Date.character(rd$date)
+rd
+
+```
+
+```{r}
+ggplot(rd) +
+  geom_line(aes(x = date, y = volume, col = as.factor(promotion))) +
+  geom_hline(yintercept = 0) + 
+  facet_wrap(~cat_tf) +
+  xlab('날짜') + 
+  ylab('판매량') +
+  scale_y_continuous(labels = label_ko_num) +
+  labs(col = '행사여부')
+  
+```
+
+```{r}
+
+
+ggplot(rd) + 
+  geom_col(aes(x = cat_tf, y = volume, fill = promo_cat1)) +
+  scale_y_continuous(labels = label_ko_num) + 
+  scale_fill_brewer(name = '프로모션정보', palette = 'Set2') + 
+  xlab('카테고리') + 
+  ylab('판매량')
+  
+```
+
+
+```{r}
+library(RColorBrewer)
+
+ggplot(rd) + 
+  geom_col(aes(x = cat_tf, y = volume, fill = promo_cat2)) +
+  scale_y_continuous(labels = label_ko_num) + 
+  scale_fill_manual(name = '프로모션정보', values = colorRampPalette(brewer.pal(9, "Spectral"))(12)) + 
+  xlab('카테고리') + 
+  ylab('판매량')
+```
+```{r}
+ggplot(data = rd, aes(x=cat_tf, fill = promo_cat2)) +
+         geom_bar(position = 'fill') +
+  scale_fill_manual(name = '프로모션정보', values = colorRampPalette(brewer.pal(9, "Spectral"))(12)) + 
+  xlab('카테고리') + 
+  ylab('비중') + 
+  scale_y_continuous(labels = scales::percent)
+
+
+  
+  
+```
+
+
+육안으로는 토요일 효과가 크지 않은 것처럼 보이
+```{r}
+ggplot(rd) + 
+  geom_point(aes(x = date, y = sales), col = 'darkblue') +
+  geom_hline(yintercept = 0) + 
+  facet_grid(~day)
+```
+
+```{r}
+ggplot(rd) + 
+  geom_col(aes(x = date, y = volume), col = 'darkblue') +
+  facet_wrap(~day)
+```
+
+```{r}
+rd %>% group_by(day) %>% summarize(volume=sum(volume)) %>% mutate(percentage = volume/sum(volume))
+```
+
+```{r}
+ggplot(rd) + 
+  geom_point(aes(x = date, y = sales, col = cat_tf)) +
+  geom_hline(yintercept = 0) + 
+  facet_wrap(~day) +
+  labs(col = '카테고리') +
+  scale_y_continuous(labels = label_ko_num) + 
+  theme(legend.text=element_text(size=4))
+  
+
+```
+
