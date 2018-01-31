@@ -159,7 +159,7 @@ for (i in 1:nrow(final_dat))
 
 -– 텍스트를 단어(명사) 별로 구분하고, 출현 빈도를 산출
 ```{r warning=F, message=F}
-text = dat_tmp[,5]
+text = dat_tmp[,1]
 cps = Corpus(VectorSource(text))
 dtm = DocumentTermMatrix(cps, control = list(tokenize = extractNoun, removeNumber = T, removePunctuation = T))
 rmat <-spMatrix(dtm$nrow,dtm$ncol, i=dtm$i, j=dtm$j, x=dtm$v)
@@ -172,7 +172,7 @@ wname <- repair_encoding(dtm$dimnames$Terms)
 ```{r message =F}
 
 sort.var <- sort(wcount,decreasing = T)[200]
-idx <- !( grepl(query.n, wname) | (wcount<=sort.var)  |nchar(wname)==1 |grepl('있', wname))
+idx <- !( grepl(query.n, wname) | (wcount<=sort.var)  |nchar(wname)==1 |grepl('있', wname) |grepl('추천', wname)|grepl('만들', wname))
 wname.rel <- wname[idx]
 wcount.rel <- wcount[idx]
 ```

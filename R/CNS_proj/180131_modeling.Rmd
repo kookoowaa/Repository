@@ -1,0 +1,439 @@
+```{r}
+library(dplyr) ; library(stringr); library(ggplot2); library(reshape2)
+```
+
+
+```{r}
+rm(list=ls())
+
+rd = read.csv('d:/cns_data/(180131)new_data_set in dummy.csv', stringsAsFactors = F)[,-1]
+rd$date = as.Date.character(rd$date)
+
+head(rd)
+
+
+for(i in (1:ncol(rd))[-c(1:2)]){rd[,i]=as.numeric(rd[,i])}
+rd$price = log(rd$price)
+
+```
+
+
+
+```{r}
+test_UPC = c(32900539,34200266,32800575,34200131,32900535,34200275,30400512,31500200,32500391,30400521,32400198,30500149)
+test_UPC = test_UPC[test_UPC %in% rd$UPC]
+
+```
+
+```{r}
+#rd_train_by_date = rd[as.integer(rd$date)%%3!=0,]
+#rd_test_by_date = rd[rd$date>as.Date.character('2016-06-09')& as.integer(rd$date)%%3==0,]
+
+#rd_train_by_date = rd[as.integer(rd$date)%%3!=0,]
+#rd_test_by_date = rd[ as.integer(rd$date)%%3==0,]
+
+single_train = rd[rd$date<=as.Date.character('2016-06-09'),]
+single_test = rd[rd$date>as.Date.character('2016-06-09') & rd$date<=as.Date.character('2016-08-03'),]
+
+
+```
+
+
+
+
+
+
+```{r}
+require(glmnet); require(xgboost); require(randomForest)
+
+
+
+  single_lm = lm(log(unit)~., data = single_train[,-c(1,2,4,24:26)])
+ 
+  grid = seq(5,0.01, length.out = 200)[-200]
+  single_ridge = cv.glmnet(x = as.matrix(single_train[,-c(1,2,3,4,24:26)]), y = log(single_train[,3]), alpha = 0, lambda = grid)
+  
+  single_boost = xgboost(data = data.matrix(single_train[,-c(1,2,4,24:26)]), label = log(single_train[,3]), max.depth = 3, eta = 0.001, nround = 5000, objective = "reg:linear", verbose = 0)
+ 
+
+```
+
+```{r}
+result_page = matrix(ncol = 4*4, nrow = length(test_UPC)+2)
+colnames(result_page) = c('lm_total', 'ridge_total', 'boost_total', 'RF_total', 'lm_day', 'ridge_day', 'boost_day', 'RF_day', 'lm_week', 'ridge_week', 'boost_week', 'RF_week', 'lm_month', 'ridge_month', 'boost_month', 'RF_month')
+rownames(result_page) = c(test_UPC, 'MEAN', 'Hit_rate')
+result_page = as.data.frame(result_page)
+result_page
+```
+
+```{r}
+require(glmnet); require(xgboost); require(randomForest)
+
+
+for (i in 1:length(test_UPC)){
+  temp_test = single_test %>% filter(UPC==test_UPC[i])
+  #single_train = single_ %>% filter(UPC==test_UPC[i])
+  
+  a = mutate(temp_test, prediction = exp(predict(single_lm, newdata = temp_test[,-c(1:4,24:26)]))) %>% mutate(PE = abs(unit-prediction)/unit) %>% select(UPC, date, unit, prediction, PE)  %>%mutate(week = (as.numeric(date) %/% 7-2422), month = as.numeric(apply(., 1, function(x){str_split(x[2], '-')[[1]][2]})))
+  result_page[i,1] = a %>% group_by(UPC) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y) %>% summarize(mean(pe)) %>% unlist
+  result_page[i,5] = a  %>% mutate( pe = abs(unit-prediction)/unit) %>% summarize(mean(pe)) %>% unlist
+  b = a %>% group_by(UPC, week) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y)
+  result_page[i,9] =  mean(b$pe)
+  b = a %>% group_by(UPC, month) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y)
+  result_page[i,13] = mean(b$pe)
+
+  
+  a = mutate(temp_test, prediction = unlist(as.data.frame(exp(predict(single_ridge, newx = as.matrix(temp_test[,-c(1:4,24:26)]), s = single_ridge$lambda.1se))))) %>% mutate(PE = abs(unit-prediction)/unit) %>% select(UPC, date, unit, prediction, PE)  %>% mutate(week = (as.numeric(date) %/% 7-2422), month = as.numeric(apply(., 1, function(x){str_split(x[2], '-')[[1]][2]})))
+  result_page[i,2] = a %>% group_by(UPC) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y) %>% summarize(mean(pe)) %>% unlist
+  result_page[i,6] = a  %>% mutate( pe = abs(unit-prediction)/unit) %>% summarize(mean(pe)) %>% unlist
+  b = a %>% group_by(UPC, week) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y)
+  result_page[i,10] =  mean(b$pe)
+  b = a %>% group_by(UPC, month) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y)
+  result_page[i,14] = mean(b$pe)
+  
+  #single_boost = gbm(log(unit)~., data =single_train[,-c(1,2, 4,7:9)], distribution="gaussian", cv.folds = 10, n.trees=1000, shrinkage=0.01, interaction.depth=3)
+  #a = mutate(temp_test, prediction = unlist(as.data.frame(exp(predict(single_boost, n.trees=1000, newdata = temp_test[,-c(1:4,7:9)]))))) %>% select(date, unit, prediction) 
+  #  result_page[i,5] = a %>% summarize(y = sum(unit), yhat = sum(prediction)) %>% summarize(1-abs(y-yhat)/y) %>% unlist()
+  #result_page[i,6] = a %>% mutate(pe = (unit-prediction)/unit)  %>%summarize(mape = 1-mean(abs(pe))) %>% unlist()
+
+  a = mutate(temp_test, prediction = unlist(as.data.frame(exp(predict(single_boost, newdata = data.matrix(temp_test[,-c(1:4,24:26)])))))) %>% mutate(PE = abs(unit-prediction)/unit) %>% select(UPC, date, unit, prediction, PE)  %>%mutate(week = (as.numeric(date) %/% 7-2422), month = as.numeric(apply(., 1, function(x){str_split(x[2], '-')[[1]][2]})))
+   result_page[i,3] = a %>% group_by(UPC) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y) %>% summarize(mean(pe)) %>% unlist
+  result_page[i,7] = a  %>% mutate( pe = abs(unit-prediction)/unit) %>% summarize(mean(pe)) %>% unlist
+  b = a %>% group_by(UPC, week) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y)
+  result_page[i,11] =  mean(b$pe)
+  b = a %>% group_by(UPC, month) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y)
+  result_page[i,15] = mean(b$pe)
+  
+  #single_rf = randomForest(log(unit)~., data =single_train[,-c(1,2, 4,7:9)])
+  #a = mutate(temp_test, prediction = unlist(as.data.frame(exp(predict(single_rf, newdata = temp_test[,-c(1:4,7:9)]))))) %>% mutate(PE = abs(unit-prediction)/unit) %>% select(UPC, date, unit, prediction, PE)  %>%mutate(week = (as.numeric(date) %/% 7-2422), month = as.numeric(apply(.,1, function(x){str_split(x[2], '-')[[1]][2]})))
+  #result_page[i,4] = a %>% group_by(UPC) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y) %>% summarize(mean(pe)) %>% unlist
+  #result_page[i,8] = a  %>% mutate( pe = abs(unit-prediction)/unit) %>% summarize(mean(pe)) %>% unlist
+  #b = a %>% group_by(UPC, week) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y)
+  #result_page[i,12] =  mean(b$pe)
+  #b = a %>% group_by(UPC, month) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y)
+  #result_page[i,16] = mean(b$pe)
+  
+  print(paste(i,'/10', sep=''))
+}
+
+result_page = result_page[,-c(4,8,12,16)]
+result_page[length(test_UPC)+1,] = apply(result_page[-((length(test_UPC)+1):(length(test_UPC)+2)),], 2, mean)
+result_page[length(test_UPC)+2,] = 1-unlist(result_page[length(test_UPC)+1,])
+result_page
+#write.csv(result_page, 'd:/cns_data/forecasting_pooled_mape_CNS_LP.csv')
+```
+
+
+```{r}
+cat_list = unlist(colnames(rd[,78:136]))
+for (i in 1:length(cat_list)){
+   assign(paste(cat_list[i],'_test', sep=''), single_test[single_test[,i+77]==1,-c(4,24:26,78:136)])
+}
+```
+
+```{r}
+### category 별로 train set 생성 후 modeling
+
+for (i in 1:length(cat_list)){
+  
+  
+  temp = single_train[single_train[,i+77]==1,-c(4,24:26,78:136)]                             #열 수가 늘어날 시 필히 체크!
+  
+  assign(paste(cat_list[i], '_lm', sep=''),lm(log(unit)~., data = temp[,-c(1,2)]))
+  
+  grid = seq(5,0.01, length.out = 200)
+  assign(paste(cat_list[i], '_ridge', sep='') ,
+         cv.glmnet(x = as.matrix(temp[,-c(1,2,3)]), 
+                   y = log(temp[,3]), 
+                   alpha = 0, lambda = grid))
+  
+  assign(paste(cat_list[i], '_boost', sep='') ,
+         xgboost(data = data.matrix(temp[,-c(1,2,3)]),
+                 label = log(temp[,3]), 
+                 max.depth = 3, eta = 0.01, nround = 1000, objective = "reg:linear", verbose = 0))
+  
+  #assign(paste(cat_list[i],'_RF', sep='') ,
+  #       randomForest(log(unit)~., data =temp[,-c(1,2)]))
+  
+  print(cat_list[i])
+  
+  }
+
+
+
+```
+
+
+
+
+
+
+```{r}
+### category 별로 modeling test
+### -> MAPE 저조
+
+result = as.data.frame(matrix(ncol = 4*4, nrow = length(cat_list)+2))
+rownames(result) = c( cat_list, 'MEAN', 'precision')
+colnames(result) = c('lm_total', 'ridge_total', 'boost_total', 'RF_total', 'lm_day', 'ridge_day', 'boost_day', 'RF_day', 'lm_week', 'ridge_week', 'boost_week', 'RF_week', 'lm_month', 'ridge_month', 'boost_month', 'RF_month')
+
+
+for(i in 1:length(cat_list)){
+  b = get(paste(cat_list[i],'_test', sep=''))
+
+  a = mutate(b, prediction = exp(predict(get(paste(cat_list[i],'_lm', sep='')), newdata = b[,-c(1:3)]))) %>% select(UPC, date, unit, prediction)  
+  a = a %>% mutate(week = (as.numeric(date) %/% 7-2422), month = as.numeric(apply(a, 1, function(x){str_split(x[2], '-')[[1]][2]})))
+  
+  result[i,1] = a %>% group_by(UPC) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y) %>% summarize(mean(pe)) %>% unlist
+  result[i,5] = a  %>% mutate( pe = abs(unit-prediction)/unit) %>% summarize(mean(pe)) %>% unlist
+  z = a %>% group_by(UPC, week) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y)
+  result[i,9] = mean(z$pe)
+  z = a %>% group_by(UPC, month) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y)
+  result[i,13] = mean(z$pe)
+  
+  
+  a = mutate(b, prediction = unlist(as.data.frame(exp(predict(get(paste(cat_list[i],'_ridge', sep='')), newx = as.matrix(b[,-c(1:3)])))))) %>% select(UPC, date, unit, prediction)%>% mutate(week = (as.numeric(date) %/% 7-2422), month = as.numeric(apply(b, 1, function(x){str_split(x[2], '-')[[1]][2]})))
+  result[i,2] = a %>% group_by(UPC) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y) %>% summarize(mean(pe)) %>% unlist
+  result[i,6] = a %>% mutate(pe = (unit-prediction)/unit)  %>%summarize(mape = mean(abs(pe))) %>% unlist()
+  z = a %>% group_by(UPC, week) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y)
+  result[i,10] = mean(z$pe)
+  z = a %>% group_by(UPC, month) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y)
+  result[i,14] = mean(z$pe)
+  
+  
+  a = mutate(b, prediction = unlist(as.data.frame(exp(predict(get(paste(cat_list[i],'_boost', sep='')), newdata = data.matrix(b[,-c(1:3)])))))) %>% select(UPC, date, unit, prediction) %>% mutate(week = (as.numeric(date) %/% 7-2422), month = as.numeric(apply(b, 1, function(x){str_split(x[2], '-')[[1]][2]})))
+  result[i,3] = a %>% group_by(UPC) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y) %>% summarize(mean(pe)) %>% unlist
+  result[i,7] = a %>% mutate(pe = (unit-prediction)/unit)  %>%summarize(mape = mean(abs(pe))) %>% unlist()
+  z = a %>% group_by(UPC, week) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y)
+  result[i,11] = mean(z$pe)
+  z = a %>% group_by(UPC, month) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y)
+  result[i,15] = mean(z$pe)
+  
+
+#  a = mutate(b, prediction = unlist(as.data.frame(exp(predict(get(paste(cat_list[i],'_RF', sep='')), newdata = b[,-c(1:3)])))))  %>% select(UPC, date, unit, prediction) %>% mutate(week = (as.numeric(date) %/% 7-2422), month = as.numeric(apply(b, 1, function(x){str_split(x[2], '-')[[1]][2]})))
+#  result[i,4] = a %>% group_by(UPC) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y) %>% summarize(mean(pe)) %>% unlist
+#  result[i,8] = a %>% mutate(pe = (unit-prediction)/unit)  %>%summarize(mape = mean(abs(pe))) %>% unlist()
+#  z = a %>% group_by(UPC, week) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y)
+#  result[i,12] = mean(z$pe)
+#  z = a %>% group_by(UPC, month) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y)
+#  result[i,16] = mean(z$pe)
+  
+  
+}
+
+result[length(cat_list)+1,] = apply(result[-c((length(cat_list)+1):(length(cat_list)+2)),], 2, mean)
+result[length(cat_list)+2,] = 1-result[length(cat_list)+1,]
+
+result[,-c(4,8,12,16)]
+#result
+
+#write.csv(result, 'd:/cns_data/180131modeling_by_cat.csv')
+```
+
+
+
+```{r}
+# Bayesian Hierarchical Regression
+
+
+library(bayesm)
+#if(nchar(Sys.getenv("LONG_TEST")) != 0) {R=2000} else {R=10}
+R=15000
+#burnin1=5000  # number of inital draws to be discarded 처음 5000개 제외
+#Z=rep(1,ns) 
+#nz=ncol(Z)
+#Delta=matrix(c(0,0,0),ncol=1)
+#Delta=t(Delta) # first row of Delta is means of betas
+
+#iota=c(rep(1,nobs))
+regdata=NULL
+ns = length(cat_list)
+
+
+for (i in 1:ns) {
+  temp = single_train[single_train[,i+77]==1,-c(4,24:26,78:136)]  
+  
+  
+  nobs = nrow(temp)
+  iota = c(rep(1,nobs))
+  X = as.matrix(cbind(iota,temp[,-c(1:3)]))
+  y = log(temp[,3])
+  regdata[[i]]=list(y=y,X=X)
+  }
+
+#Data1=list(regdata=regdata,Z=Z)
+Data1=list(regdata=regdata)
+Mcmc1=list(R=R,keep=1)
+
+#Prior1=list(Deltabar=Delta,A=0.01*diag(1),nu.e=3,ssq=rep(0.06,ns),nu=6,V=6*0.1*diag(3)) 
+#out=rhierLinearModel(Data=Data1,Prior=Prior1, Mcmc=Mcmc1)
+bayes = rhierLinearModel(Data=Data1, Mcmc=Mcmc1)    # 실제 regression
+
+cat("Summary of Delta draws",fill=TRUE)
+summary(bayes$Deltadraw)
+cat("Summary of Vbeta draws",fill=TRUE)
+summary(bayes$Vbetadraw)
+
+```
+
+```{r}
+bayes_beta = as.data.frame(matrix(nrow = length(cat_list), ncol = dim(bayes$betadraw)[2]+1))
+colnames(bayes_beta) = c('category',  '(intercept)', colnames(single_train[,-c(1:4,24:26,78:136)]))
+bayes_beta[,1] =  cat_list
+bayes_sd = bayes_beta
+
+
+for(i in 1:dim(bayes$betadraw)[2]){
+  assign(paste('bayes_draw_',i,sep=''), bayes$betadraw[,i,5001:R])
+  bayes_beta[,i+1] = rowMeans(get(paste('bayes_draw_',i,sep='')))
+  bayes_sd[,i+1] = apply(get(paste('bayes_draw_',i,sep='')),1,sd)
+}
+
+beta_list = colnames(bayes_beta[,-1])
+bayes_beta
+bayes_sd
+
+```
+
+```{r}
+beta_check = cbind(lm_coefficients,rbind(NA,bayes_beta[,c(3,15,63)]))
+beta_check = beta_check[,c(1:2,7,3,5,4,6)]
+colnames(beta_check[,c(3,5,7)]) = c('base_price_bayes', 'sale_event_bayes', 'promo3_addition_bayes')
+beta_check
+```
+
+```{r}
+import_mat = xgb.importance(colnames(data.matrix(single_train[,-c(1,2,3, 4,7:9)])), model = single_boost)
+print(import_mat)
+```
+
+```{r}
+#library(Ckmeans.1d.dp)
+xgb.plot.importance(importance_matrix = import_mat)
+```
+
+
+```{r}
+
+library(gridExtra)
+library(reshape2)
+test_subject = c('price', 'trendx', 'nat_holiday')
+
+bayes_beta
+price_MCMC = as.data.frame(t(bayes_draw_2)); colnames(price_MCMC) = cat_list; price_MCMC = melt(price_MCMC)
+trendx_MCMC = as.data.frame(t(bayes_draw_21)); colnames(trendx_MCMC) = cat_list; trendx_MCMC = melt(trendx_MCMC)
+holiday_MCMC = as.data.frame(t(bayes_draw_20)); colnames(holiday_MCMC) = cat_list; holiday_MCMC = melt(holiday_MCMC)
+
+
+
+ridge_coefficients = as.data.frame(matrix(nrow=length(cat_list)+1, ncol=4))
+colnames(ridge_coefficients) = c('category', test_subject)
+ridge_coefficients[,1]=c('single',cat_list)
+
+get(paste(ridge_coefficients$category, '_ridge', sep='' ))$coefficients
+
+
+
+
+
+
+
+
+
+
+for (i in 1:nrow(ridge_coefficients)){
+  for(j in 2:ncol(ridge_coefficients)){
+    ridge_coefficients[i,j] = coef(get(paste(ridge_coefficients$category, '_ridge', sep='' )[i]))[dimnames(coef(get(paste(ridge_coefficients$category, '_ridge', sep='' )[i])))[[1]]==colnames(ridge_coefficients[j])]
+                                       
+  }
+}
+
+
+grid.arrange(
+
+ggplot(ridge_coefficients[-1,], aes(x = category)) +
+  geom_hline(aes(yintercept = ridge_coefficients[1,2], linetype = 'pooled ridge')) + 
+  labs(title ='effect of price in different ridge models', linetype = 'baseline') +
+  geom_boxplot(data = price_MCMC, aes(x = variable, y = value, fill= 'a')) + 
+  geom_point(aes(y = price, col = 'red')) + 
+  geom_line(aes(y = price, col = 'red', group = 1)) + 
+  scale_fill_brewer(palette = 'Pastel2')+
+  guides(col=FALSE, fill = F, size = F)+
+  theme(text = element_text(size=10),
+        axis.text.x = element_text(angle=45, hjust=1)),
+  
+ggplot(ridge_coefficients[-1,], aes(x = category)) +
+  geom_hline(aes(yintercept = ridge_coefficients[1,3], linetype = 'pooled ridge')) + 
+  labs(title ='effect of trend in different ridge models', linetype = 'baseline') +
+  geom_boxplot(data = trendx_MCMC, aes(x = variable, y = value, fill= 'a')) + 
+  geom_point(aes(y = trendx, col = 'red')) + 
+  geom_line(aes(y = trendx, col = 'red', group = 1)) + 
+  scale_fill_brewer(palette = 'Pastel2')+
+  guides(col=FALSE, fill = F, size = F)+
+  theme(text = element_text(size=10),
+        axis.text.x = element_text(angle=45, hjust=1)),
+
+ggplot(ridge_coefficients[-1,], aes(x = category)) +
+  geom_hline(aes(yintercept = ridge_coefficients[1,4], linetype = 'pooled ridge')) + 
+  labs(title ='effect of holiday in different ridge models', linetype = 'baseline') +
+  geom_boxplot(data = holiday_MCMC, aes(x = variable, y = value, fill= 'a')) + 
+  geom_point(aes(y = nat_holiday, col = 'red')) + 
+  geom_line(aes(y = nat_holiday, col = 'red', group = 1)) + 
+  scale_fill_brewer(palette = 'Pastel2')+
+  guides(col=FALSE, fill = F, size = F) +
+  theme(text = element_text(size=10),
+        axis.text.x = element_text(angle=45, hjust=1)),
+
+
+
+nrow = 3)
+
+```
+
+```{r}
+for (i in 1:length(cat_list)) {
+  temp = single_test[single_test[,i+77]==1,-c(4,24:26,78:136)]
+
+  nobs = nrow(temp)
+  iota = c(rep(1,nobs))
+  X = as.matrix(cbind(iota,temp[,-c(1:3)]))
+  
+  
+  a = X %*% t(as.matrix(bayes_beta[i,2:72]))
+  colnames(a) = 'prediction'
+  
+  assign(paste(cat_list[i], '_bayes_test', sep=''), cbind(temp[,c(1:3)],exp(a)))
+  
+  }
+
+
+bayes_test = rbind(get(paste(cat_list, '_bayes_test', sep='')))
+
+
+```
+
+```{r}
+bayes_result = as.data.frame(matrix(ncol = 4, nrow = length(cat_list)+2))
+rownames(bayes_result) = c( cat_list, 'MEAN', 'precision')
+colnames(bayes_result) = c('bayes_total', 'bayes_day', 'bayes_week', 'bayes_month')
+
+
+for(i in 1:length(cat_list)){
+  b = get(paste(cat_list[i], '_bayes_test', sep=''))
+  a = b  %>% mutate(week = (as.numeric(date) %/% 7-2422), month = as.numeric(apply(b, 1, function(x){str_split(x[2], '-')[[1]][2]})))
+  
+  bayes_result[i,1] = a %>% group_by(UPC) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y) %>% summarize(mean(pe)) %>% unlist
+  bayes_result[i,2] = a  %>% mutate( pe = abs(unit-prediction)/unit) %>% summarize(mean(pe)) %>% unlist
+  z = a %>% group_by(UPC, week) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y)
+  bayes_result[i,3] = mean(z$pe)
+  z = a %>% group_by(UPC, month) %>% summarize(y = sum(unit), yhat = sum(prediction), pe = abs(y-yhat)/y)
+  bayes_result[i,4] = mean(z$pe)
+  
+  }
+
+bayes_result[(nrow(bayes_result)-1),] = apply(bayes_result[(-nrow(bayes_result)+1):-nrow(bayes_result),], 2, mean)
+bayes_result[nrow(bayes_result),] = 1 - bayes_result[nrow(bayes_result)-1,]
+
+bayes_result
+
+```
+
