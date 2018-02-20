@@ -1,0 +1,261 @@
+```{r}
+library(dplyr) ; library(stringr); library(ggplot2); library(reshape2)
+```
+
+
+```{r}
+rm(list=ls())
+
+rd = read.csv('d:/cns_data/(180205)new_data_set in dummy.csv', stringsAsFactors = F)[,-1]
+cat_list = unlist(colnames(rd[,80:138]))
+
+rd$date = as.Date.character(rd$date)
+
+
+
+
+for(i in 2:ncol(rd)){rd[,i]=as.numeric(rd[,i])}
+
+
+
+rd = rd[,c(1:28,30:44)]
+
+
+rd$unit = round(log(rd$unit),3); rd$price = round(log(rd$price),3) ; rd$base_p = round(log(rd$base_p),3)
+
+rd = rd[,c(1:5,7:43)]
+```
+
+
+
+```{r}
+test_UPC = c(32900539,34200266,32800575,34200131,32900535,34200275,30400512,31500200,32500391,30400521,32400198,30500149)
+test_UPC = test_UPC[test_UPC %in% rd$UPC]
+rd_UPC = unique(rd$UPC)
+
+#rd_train %>% group_by(UPC) %>% tally() %>% arrange(n) %>% filter(n>300) %>% arrange(desc(n))
+```
+
+```{r}
+#rd_train_by_date = rd[as.integer(rd$date)%%3!=0,]
+#rd_test_by_date = rd[rd$date>as.Date.character('2016-06-09')& as.integer(rd$date)%%3==0,]
+
+#rd_train_by_date = rd[as.integer(rd$date)%%3!=0,]
+#rd_test_by_date = rd[ as.integer(rd$date)%%3==0,]
+
+rd_train = rd[rd$date<=as.Date.character('2016-06-09'),]
+rd_test = rd[rd$date>as.Date.character('2016-06-09') & rd$date<=as.Date.character('2016-08-03'),]
+rd_UPC = rd_train %>% group_by(UPC) %>% tally() %>% arrange(n) %>% filter(n>100) %>% select(UPC) %>% unlist
+
+```
+
+
+
+
+
+
+
+
+
+
+```{r}
+# Bayesian Hierarchical Regression
+
+
+library(bayesm)
+#if(nchar(Sys.getenv("LONG_TEST")) != 0) {R=2000} else {R=10}
+R=15000
+#burnin1=5000  # number of inital draws to be discarded 처음 5000개 제외
+#Z=rep(1,ns) 
+#nz=ncol(Z)
+#Delta=matrix(c(0,0,0),ncol=1)
+#Delta=t(Delta) # first row of Delta is means of betas
+
+#iota=c(rep(1,nobs))
+regdata=NULL
+ns = length(rd_UPC)
+
+
+for (i in 1:ns) {
+  temp = rd_train %>% filter(UPC==rd_UPC[i])
+  temp = temp[,-c(1,2,4)]
+  
+  
+  nobs = nrow(temp)
+  iota = c(rep(1,nobs))
+  X = as.matrix(cbind(iota,temp[,-1]))
+  y = temp[,1]
+  regdata[[i]]=list(y=y,X=X)
+  }
+
+#Data1=list(regdata=regdata,Z=Z)
+Data1=list(regdata=regdata)
+Mcmc1=list(R=R,keep=1)
+
+#Prior1=list(Deltabar=Delta,A=0.01*diag(1),nu.e=3,ssq=rep(0.06,ns),nu=6,V=6*0.1*diag(3)) 
+#out=rhierLinearModel(Data=Data1,Prior=Prior1, Mcmc=Mcmc1)
+bayes = rhierLinearModel(Data=Data1, Mcmc=Mcmc1)    # 실제 regression
+
+cat("Summary of Delta draws",fill=TRUE)
+summary(bayes$Deltadraw)
+cat("Summary of Vbeta draws",fill=TRUE)
+summary(bayes$Vbetadraw)
+
+
+
+```
+
+
+
+
+
+
+
+```{r}
+bayes_beta = as.data.frame(matrix(nrow = length(rd_UPC), ncol = dim(bayes$betadraw)[2]+1))
+colnames(bayes_beta) = c('UPC',  '(intercept)', colnames(temp[,-1]))
+bayes_beta[,1] =  rd_UPC
+bayes_sd = bayes_beta
+
+
+for(i in 1:dim(bayes$betadraw)[2]){
+  assign(paste('bayes_draw_',i,sep=''), bayes$betadraw[,i,5001:R])
+  bayes_beta[,i+1] = rowMeans(get(paste('bayes_draw_',i,sep='')))
+  bayes_sd[,i+1] = apply(get(paste('bayes_draw_',i,sep='')),1,sd)
+}
+
+beta_list = colnames(bayes_beta[,-1])
+bayes_beta
+bayes_sd
+
+```
+
+
+```{r}
+beta_check = cbind(lm_coefficients,rbind(NA,bayes_beta[,c(3,15,63)]))
+beta_check = beta_check[,c(1:2,7,3,5,4,6)]
+colnames(beta_check[,c(3,5,7)]) = c('base_price_bayes', 'sale_event_bayes', 'promo3_addition_bayes')
+beta_check
+```
+
+```{r}
+price_MCMC = as.data.frame(t(bayes_draw_2)); colnames(price_MCMC) = rd_UPC; price_MCMC = melt(price_MCMC)
+
+ggplot() +
+  geom_boxplot(data = price_MCMC, aes(x = variable, y = value, fill= 'a'))+
+  geom_hline(aes(yintercept = single_lm$coefficients[2], linetype = 'pooled lm')) +
+  
+```
+
+
+
+
+
+```{r}
+single_lm = lm(unit~.-UPC, data = rd_train[,-c(1,4)] %>% filter(UPC %in% rd_UPC))
+
+for(i in 1:length(rd_UPC)){
+  
+  assign(paste(rd_UPC[i], '_lm', sep=''),lm(unit~.-UPC, data = rd_train[,-c(1,4)] %>% filter(UPC ==rd_UPC[i])))
+}
+
+lm_coefficient = as.data.frame(matrix(nrow=length(rd_UPC)+1, ncol=2))
+colnames(lm_coefficient) = c('UPC', 'price')
+lm_coefficient[,1]=c('single',rd_UPC)
+
+lm_coefficient[,2] = apply(lm_coefficient, 1, function(x){get(paste(x[1], '_lm', sep='' ))$coefficients[2]})
+```
+
+
+```{r}
+ggplot() +
+  geom_boxplot(data = price_MCMC, aes(x = variable, y = value, fill= 'a'))+
+  geom_hline(aes(yintercept = single_lm$coefficients[2], linetype = 'pooled lm')) +
+  geom_point(aes(y = price, col = 'red'), data = lm_coefficient) + 
+  geom_line(aes(y = price, col = 'red', group = 1), data = lm_coefficient)
+```
+
+```{r}
+test_UPC
+
+test_UPC_bayes_beta = bayes_beta %>% filter(UPC %in% test_UPC)
+
+
+```
+
+
+```{r}
+rd_UPC = rd_test %>% distinct(UPC) %>% filter (UPC %in% rd_UPC) %>% unlist
+
+mape = test_UPC_bayes_beta[,1:3]
+colnames(mape)[2:3] = c('pe', 'pe_week')
+mape[,2:3] = NA
+
+
+for(i in 1:length(test_UPC)){
+  a = test_UPC_bayes_beta %>% filter(UPC==test_UPC[i])
+  a = a[,-1]
+  
+  b = rd_test %>% filter(UPC==test_UPC[i])
+  
+  q = cbind(b, as.matrix(cbind(rep(1,nrow(b)),b[,5:42])) %*%t(a))[,c(3,43,1)]
+  colnames(q)[2] = 'yhat'
+  q$unit = exp(q$unit)
+  q$yhat = exp(q$yhat)
+  q = q %>% mutate(week = (as.numeric(date) %/% 7-2422), month = as.numeric(apply(a, 1, function(x){str_split(x[2], '-')[[1]][2]})))
+  
+  
+  w = q %>% mutate(pe = abs(unit-yhat)/unit) %>% summarize(mean(pe)) %>% unlist
+  q = q %>% group_by(week) %>% summarize(y = sum(unit), yhat = sum(yhat), pe = abs(y-yhat)/y)
+  y = mean(q$pe)
+
+  
+  mape[i,2] = w
+  mape[i,3] = y
+}
+
+
+mean(mape$pe)
+mean(mape$pe_week)
+
+
+```
+
+
+
+```{r}
+rd_UPC = rd_test %>% distinct(UPC) %>% filter (UPC %in% rd_UPC) %>% unlist
+
+mape = bayes_beta[,1:2]
+colnames(mape)[2] = 'pe'
+mape[,2] = NA
+
+
+for(i in 1:length(rd_UPC)){
+  a = bayes_beta %>% filter(UPC==rd_UPC[i])
+  a = a[,-1]
+  
+  b = rd_test %>% filter(UPC==rd_UPC[i])
+  
+  q = cbind(b, as.matrix(cbind(rep(1,nrow(b)),b[,5:42])) %*%t(a))[,c(3,43)]
+  colnames(q)[2] = 'yhat'
+  q$unit = exp(q$unit)
+  q$yhat = exp(q$yhat)
+  
+  q = q %>% mutate(pe = abs(unit-yhat)/unit) %>% summarize(mean(pe)) %>% unlist
+
+  
+  mape[i,2] = q
+}
+mape = mape[complete.cases(mape),]
+
+mean(mape$pe)
+  
+
+mape %>% arrange(pe)
+
+
+
+
+```
+
