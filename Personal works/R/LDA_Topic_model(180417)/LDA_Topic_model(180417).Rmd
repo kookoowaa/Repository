@@ -1,0 +1,97 @@
+```{r}
+## 토픽모형
+library(lda); library(ggplot2); library(reshape2); library(cowplot)
+setwd("D:/Github/Personal works/R/LDA_Topic_model(180417)")
+shop=read.csv("쇼핑.csv")
+```
+
+
+```{r}
+preproc = function(data,name){
+  tab=table(data[,1])
+  line=paste(data[,2]-1,data[,3],sep=":")
+  line=tapply(line,data[,1],FUN=identity)
+  line=Map(c, tab, line)
+  line=lapply(line,FUN=function(x) paste(x,collapse=" "))
+  line=paste(line,collapse="\n")
+  
+  loc=paste0(name,".dat")
+  outfile=file(loc)
+  writeLines(line,outfile)
+  close(outfile)
+}
+```
+
+```{r}
+preproc(shop,"쇼핑")
+
+shop2=read.documents("쇼핑.dat"); item_name=read.vocab("품목.txt")
+head(shop2,1)
+set.seed(100)
+n=length(shop2); K=11; W=70; alpha=1.0; beta=1.0
+lda=lda.collapsed.gibbs.sampler(shop2, K, item_name, 500, alpha, beta) 
+
+# theta를 추정
+theta=t(lda$document_sums)
+for(i in 1:n) theta[i,]=theta[i,]/sum(theta[i,])
+round(theta[1:3,1:10],2)
+
+# phi를 추정
+phi=lda$topics
+for(i in 1:K)  phi[i,]=phi[i,]/sum(phi[i,])
+round(phi[1:3,1:10],2)
+
+# 상품의 비율
+p=colSums(lda$topics)/sum(lda$topics)
+
+# lift 계산
+lift=matrix(0,nrow=K,ncol=W)
+colnames(lift)=item_name
+for(i in 1:K){
+  lift[i,p!=0]=phi[i,p!=0]/p[p!=0]
+  lift[i,p==0]=0
+}
+```
+
+```{r}
+# 토픽마다 lift 상위 2개 상품으로 이름을 붙임
+topic_name=c()
+for(i in 1:K){
+  sorted=sort(lift[i,],decreasing=T)[1:2]
+  topic_name=c(topic_name,paste(names(sorted),collapse=" "))
+}
+topic_name
+```
+
+```{r}
+plot_topic=function(phi,idx,ncol,main=""){
+  theme_set(theme_bw()) 
+  phi.df <- melt(cbind(data.frame(phi[idx,]), char=factor(idx)), variable.name="item", id.vars = "char")
+  ggplot(phi.df,aes(item,value,fill=item)) + geom_bar(stat="identity") +
+    theme(axis.text.x = element_text(angle=90, hjust=1),legend.position="none") +  
+    coord_flip() +
+    facet_wrap(~ char, ncol=ncol) +
+    ggtitle(main) +
+    theme(plot.title = element_text(hjust = 0.5))
+}
+
+par(mfrow=c(1,2))
+colnames(phi)=item_name
+plot_grid(plot_topic(phi,c(1,6,7),ncol=3,"Probability"),plot_topic(lift,c(1,6,7),ncol=3,"Lift"),align='h')
+
+```
+
+```{r}
+plot_client=function(theta,idx,ncol){
+  theme_set(theme_bw()) 
+  theta.df <- melt(cbind(data.frame(theta[idx,]), client=factor(idx)), variable.name="topic", id.vars = "client")
+  ggplot(theta.df,aes(topic,value,fill=topic)) + geom_bar(stat="identity") +
+    theme(axis.text.x = element_text(angle=90, hjust=1)) +  
+    coord_flip() +
+    facet_wrap(~ client, ncol=ncol)
+}
+par(mfrow=c(1,1))
+colnames(theta)=topic_name
+plot_client(theta,c(5,100,500),ncol=3)
+```
+

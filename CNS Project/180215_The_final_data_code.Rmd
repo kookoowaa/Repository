@@ -1,0 +1,1105 @@
+#######################################################################################
+# Programme by.......: Park, Chanwoo / Jang, Doosan
+# File name..........: CNS_model_accessment.Rmd
+# Written Date.......: 2018-02-11
+# Program Description: We have generated forecasting models based on data from LG CNS.
+#                      In order to access the effectivity of forecasting models, we have
+#                      tested our models on test data in percentage error. (median)
+#                      The codes below generate models and test its percentage error.
+#                      To find the result, please check dataframe 'MAPE', and other
+#                      dataframes starting with 'MAPE_...'
+#######################################################################################
+
+
+
+본 프로젝트에서 사용한 패키지는 다음과 같습니다.
+
+```{r}
+library(dplyr) ; library(stringr); library(ggplot2); library(reshape2)
+library(glmnet) ; library(bayesm) ;library(gridExtra)
+
+#library(xgboost) ; library(randomForest)
+
+```
+
+
+분석에서 사용한 데이터는 1차적으로 정제한 데이터이며, 모듈화 하여 분석에 사용하였습니다.
+
+```{r}
+rm(list=ls())
+
+rd = read.csv('d:/cns_data/(180214)data_set_for_regression_type4.csv', stringsAsFactors = F)[,-1]
+info = c(1,2,4)
+response_variable = 3
+key_variable = 5:29
+promo1 = 30:32
+promo2 = c(33:41,43:45)
+cat = 46:125
+brand = 126:175
+#clust = 149:160    # unit/price/brand/category 변수 중 일부를 선택하여 cluster 생성(kmeans)
+
+
+rd$date = as.Date.character(rd$date)
+for(i in 3:ncol(rd)){rd[,i]=as.numeric(rd[,i])}
+rd$unit = log(rd$unit); rd$price = log(rd$price)
+
+
+
+### 모델에 사용할 설명변수 선택
+explanatory_variable = c(key_variable, promo2)
+  # UPC 별 분석에 사용
+
+#explanatory_variable2 = c(explanatory_variable, brand, cat) #, clust)
+  # pooled 데이터 모델 설계 시 사용
+
+#explanatory_variable3 = c(explanatory_variable, cat) #,clust)
+  # brand 별 모델 설계 시 사용
+
+
+```
+
+Training / Test set 분류
+
+```{r}
+
+rd_train = rd[rd$date<=as.Date.character('2016-06-09'),]
+rd_test = rd[rd$date>as.Date.character('2016-06-09') & rd$date<=as.Date.character('2016-08-03'),]
+
+test_UPC[!(test_UPC %in% rd_UPC)]
+
+test_UPC = c(32900539,34200266,32800575,34200131,32900535,34200275,30400512,31500200,32500391,30400521,32400198,30500149)
+#rd_UPC = unique(rd$UPC)
+rd_UPC = rd_train %>% group_by(UPC) %>% tally() %>% arrange(n) %>% filter(n>365) %>% select(UPC) %>% unlist
+
+rd_UPC = rd_UPC[rd_UPC %in% (rd_test %>% group_by(UPC) %>% tally() %>% filter(n>49) %>% select(UPC) %>% unlist)]
+
+
+## rd_UPC는 전체 분석대상에 해당하며, test_UPC는 CNS가 과거에 프로젝트로 진행했던 12개 UPC에 해당함
+```
+
+
+PE 비교를 위한 비교표를 생성하였으며 총 8개(+1)의 모델의 정확성을 검증해보고자 함
+* UPC 간 variance가 상당한 관계로, mean 대신 median 값 사용
+
+
+```{r}
+### MAPE 비교표
+
+model_outputs = c('ols', 'ridge', 'bayes', 'bayes_brand', 'bayes_cat',  'bayes_bc')
+MAPE = data.frame(matrix(data = NA, nrow = length(rd_UPC)+1, ncol = 3))
+colnames(MAPE) = c('UPC', 'MAPE_day', 'MAPE_wk')
+MAPE[,1] = c('MAPE', rd_UPC)
+
+
+for ( i in 1:length(model_outputs)){
+  assign(paste('MAPE_', model_outputs[i], sep=''), MAPE)
+}
+
+MAPE = data.frame(matrix(data = NA, nrow = length(unlist(model_outputs)), ncol = 3))
+colnames(MAPE) = c('models', 'MAPE_day', 'MAPE_wk')
+MAPE[,1] = model_outputs
+
+```
+
+
+****************************************************
+1번 모델 - Ridge shrinkage 모델 (P.E. 20.5)
+lambda 값은 0.01~5까지 CV 통해서 lambda.1se 값 사용
+
+
+```{r warning=FALSE}
+## ridge regression by UPC
+
+grid = seq(5,0.01, length.out = 200)[-200]
+
+for(i in 1:length(rd_UPC)){
+  
+  # UPC 별 ridge regression
+  temp = cv.glmnet(x = as.matrix(rd_train[rd_train$UPC %in% rd_UPC[i],explanatory_variable]), y = rd_train[rd_train$UPC %in% rd_UPC[i], response_variable], 
+                     alpha = 0, lambda = grid)
+
+  # UPC 별 prediction 확인
+  temp1 = rd_test %>% filter(UPC %in% rd_UPC[i]) %>% select(UPC, date, unit)
+  temp1 = cbind(temp1, predict(temp, newx = as.matrix(rd_test[rd_test$UPC %in% rd_UPC[i],explanatory_variable]), s = 'lambda.1se'))
+  colnames(temp1)[4] = 'yhat'
+  temp1$unit = exp(temp1$unit); temp1$yhat = exp(temp1$yhat)
+  temp1 = temp1 %>% mutate(pe = abs(unit-yhat)/unit)
+  temp1 = temp1 %>% mutate(week = (as.numeric(date) %/% 7-2422))
+  #temp1 = temp1 %>% mutate(week = (as.numeric(date) %/% 7-2422), month = ifelse(week %in% 1:4, 1, 2))
+  MAPE_ridge[MAPE_ridge$UPC == rd_UPC[i],]$MAPE_day = 
+    temp1 %>% mutate(pe = abs(unit-yhat)/unit) %>% summarize(median(pe)) %>% unlist
+  MAPE_ridge[MAPE_ridge$UPC == rd_UPC[i],]$MAPE_wk = 
+    temp1 %>% group_by(week) %>% summarize(unit = sum(unit), yhat = sum(yhat), wk_pe = abs(unit-yhat)/unit) %>% summarize(median(wk_pe)) %>% unlist
+  
+  if(i%%100==0){print(i)}
+}
+
+MAPE_ridge$MAPE_day = as.numeric(MAPE_ridge$MAPE_day); MAPE_ridge$MAPE_wk = as.numeric(MAPE_ridge$MAPE_wk)
+MAPE_ridge[1,2:3] = apply(MAPE_ridge[-1,2:3],2,median)
+MAPE[MAPE$models=='ridge',2:3] = MAPE_ridge[1,2:3] 
+```
+
+
+****************************************************
+2번 모델 - Bayesian shrinkage 모델 (R = 50,000) (P.E. 21.7)
+Y_it = X_it %*% B_i + e_i
+B_i = Z %*% Δ[,i] + V_i
+Z ~ iota
+
+
+```{r}
+# Bayesian Hierarchical Regression
+
+
+R=50000
+
+regdata=NULL
+ns = length(rd_UPC)
+
+
+for (i in 1:ns) {
+  temp = rd_train %>% filter(UPC==rd_UPC[i])
+  
+  nobs = nrow(temp)
+  iota = c(rep(1,nobs))
+  X = as.matrix(cbind(iota,temp[,explanatory_variable]))
+  y = temp[,response_variable]
+  regdata[[i]]=list(y=y,X=X)
+  }
+
+
+Data1=list(regdata=regdata)
+Mcmc1=list(R=R,keep=50, nprint = 5000)
+bayes = rhierLinearModel(Data=Data1, Mcmc=Mcmc1)    # 실제 regression
+
+
+
+
+# Bayes beta/sd 값 정리
+
+bayes_coef = as.data.frame(matrix(nrow = length(rd_UPC), ncol = dim(bayes$betadraw)[2]+1))
+colnames(bayes_coef) = c('UPC',  '(intercept)', colnames(X[,-1]))
+bayes_coef[,1] =  rd_UPC
+bayes_sd = bayes_coef
+
+
+for(i in 1:(ncol(bayes_coef)-1)){
+  temp = bayes$betadraw[,i,(dim(bayes$betadraw)[3]/2+1):dim(bayes$betadraw)[3]]
+  bayes_coef[,i+1] = rowMeans(temp)
+  bayes_sd[,i+1] = apply(temp,1,sd)
+}
+
+
+
+
+### Bayes prediction (MAPE)
+#   UPC 별 beta matrix와 test matrix간의 곱으로 yhat 추정
+
+
+for(i in 1:length(rd_UPC)){
+  
+  # UPC 별 beta 값 확인
+  temp = bayes_coef %>% filter(UPC==rd_UPC[i]) ; temp = temp[,-1]
+  
+  
+  # UPC 별 prediction 확인
+  temp1 = cbind(1,rd_test[rd_test$UPC %in% rd_UPC[i],explanatory_variable])
+  
+  temp1 = cbind(rd_test[rd_test$UPC %in% rd_UPC[i],1:3], as.matrix(temp1) %*% t(temp))
+  colnames(temp1)[4] = 'yhat'
+  temp1$unit = exp(temp1$unit); temp1$yhat = exp(temp1$yhat)
+  temp1 = temp1 %>% mutate(pe = abs(unit-yhat)/unit)
+  temp1 = temp1 %>% mutate(week = (as.numeric(date) %/% 7-2422))
+ 
+  
+  MAPE_bayes[MAPE_bayes$UPC == rd_UPC[i],]$MAPE_day = 
+    temp1 %>% mutate(pe = abs(unit-yhat)/unit) %>% summarize(median(pe)) %>% unlist
+  MAPE_bayes[MAPE_bayes$UPC == rd_UPC[i],]$MAPE_wk = 
+    temp1 %>% group_by(week) %>% summarize(unit = sum(unit), yhat = sum(yhat), wk_pe = abs(unit-yhat)/unit) %>% summarize(median(wk_pe)) %>% unlist
+  
+  if(i%%100==0){print(i)}
+}
+
+MAPE_bayes$MAPE_day = as.numeric(MAPE_bayes$MAPE_day); MAPE_bayes$MAPE_wk = as.numeric(MAPE_bayes$MAPE_wk)
+MAPE_bayes[1,2:3] = apply(MAPE_bayes[-1,2:3],2,median)
+MAPE[MAPE$models=='bayes',2:3] = MAPE_bayes[1,2:3] 
+
+
+
+rm(bayes)
+```
+
+
+****************************************************
+3번 모델 - Bayesian shrinkage 모델 with brand observed error term (P.E. 23.2)
+Y_it = X_it %*% B_i + e_i
+B_i = Z %*% Δ[,i] + V_i
+Z ~ brand
+
+```{r}
+
+
+
+temp = as.data.frame(matrix(data = NA,ncol = 1+length(brand), nrow = length(rd_UPC)))
+temp[,1] = rd_UPC ; temp[,2]=1
+colnames(temp) = c('UPC', colnames(rd[,c(brand)]))
+
+temp1 = merge(temp[,1:2], rd[,c(1, brand)]%>%distinct(), by = 'UPC')
+
+for(i in 1:length(rd_UPC)){
+temp[i,2:ncol(temp)] = temp1[temp1$UPC %in% temp$UPC[i],3:ncol(temp1)]
+}
+
+
+
+Z = as.matrix(temp[,2:ncol(temp)])
+Delta=matrix(0,nrow = length(brand), ncol = length(explanatory_variable)+1)    
+
+
+R=50000
+
+regdata=NULL
+ns = length(rd_UPC)
+
+
+for (i in 1:ns) {
+  temp = rd_train %>% filter(UPC==rd_UPC[i])
+  
+  nobs = nrow(temp)
+  iota = c(rep(1,nobs))
+  X = as.matrix(cbind(iota,temp[,explanatory_variable]))
+  y = temp[,response_variable]
+  regdata[[i]]=list(y=y,X=X)
+  }
+
+Data1=list(regdata=regdata,Z=Z)
+Mcmc1=list(R=R,keep=50, nprint = 5000)
+
+
+bayes_brand = rhierLinearModel(Data=Data1, Mcmc=Mcmc1)    # 실제 regression
+# Z 값에 따른 prior 값은 저희가 코딩한 것과 rhierLinearModel에서 default로 가져가는 prior와 동일하였기에 package의 default 값을 사용함
+
+
+
+
+
+# Bayes beta/sd 값 정리
+
+bayes_brand_coef = as.data.frame(matrix(nrow = length(rd_UPC), ncol = dim(bayes_brand$betadraw)[2]+1))
+colnames(bayes_brand_coef) = c('UPC',  '(intercept)', colnames(X[,-1]))
+bayes_brand_coef[,1] =  rd_UPC
+bayes_brand_sd = bayes_brand_coef
+
+
+for(i in 1:(ncol(bayes_brand_coef)-1)){
+  temp = bayes_brand$betadraw[,i,(dim(bayes_brand$betadraw)[3]/2+1):dim(bayes_brand$betadraw)[3]]
+  bayes_brand_coef[,i+1] = rowMeans(temp)
+  bayes_brand_sd[,i+1] = apply(temp,1,sd)
+}
+
+
+
+
+
+for(i in 1:length(rd_UPC)){
+  
+  # UPC 별 beta 값 확인
+  temp = bayes_brand_coef %>% filter(UPC==rd_UPC[i]) ; temp = temp[,-1]
+  
+  
+  # UPC 별 prediction 확인
+  temp1 = cbind(1,rd_test[rd_test$UPC %in% rd_UPC[i],explanatory_variable])
+  
+  temp1 = cbind(rd_test[rd_test$UPC %in% rd_UPC[i],1:3], as.matrix(temp1) %*% t(temp))
+  colnames(temp1)[4] = 'yhat'
+  temp1$unit = exp(temp1$unit); temp1$yhat = exp(temp1$yhat)
+  temp1 = temp1 %>% mutate(pe = abs(unit-yhat)/unit)
+  temp1 = temp1 %>% mutate(week = (as.numeric(date) %/% 7-2422))
+ 
+  
+  MAPE_bayes_brand[MAPE_bayes_brand$UPC == rd_UPC[i],]$MAPE_day = 
+    temp1 %>% mutate(pe = abs(unit-yhat)/unit) %>% summarize(median(pe)) %>% unlist
+  MAPE_bayes_brand[MAPE_bayes_brand$UPC == rd_UPC[i],]$MAPE_wk = 
+    temp1 %>% group_by(week) %>% summarize(unit = sum(unit), yhat = sum(yhat), wk_pe = abs(unit-yhat)/unit) %>% summarize(median(wk_pe)) %>% unlist
+  
+  if(i%%100==0){print(i)}
+}
+
+MAPE_bayes_brand$MAPE_day = as.numeric(MAPE_bayes_brand$MAPE_day); MAPE_bayes_brand$MAPE_wk = as.numeric(MAPE_bayes_brand$MAPE_wk)
+MAPE_bayes_brand[1,2:3] = apply(MAPE_bayes_brand[-1,2:3],2,median)  
+MAPE[MAPE$models=='bayes_brand',2:3] = MAPE_bayes_brand[1,2:3] 
+
+
+
+rm(bayes_brand)
+```
+
+
+****************************************************
+4번 모델 - Bayesian shrinkage 모델 with cat observed error term (P.E. 23.1)
+Y_it = X_it %*% B_i + e_i
+B_i = Z %*% Δ[,i] + V_i
+Z ~ cat
+  (cat 은 10개의 그룹으로 구분)
+
+
+```{r}
+
+
+temp = as.data.frame(matrix(data = NA,ncol = 1+length(cat), nrow = length(rd_UPC)))
+temp[,1] = rd_UPC ; temp[,2]=1
+colnames(temp) = c('UPC', colnames(rd[,c(cat)]))
+
+temp1 = merge(temp[,1:2], rd[,c(1, cat)]%>%distinct(), by = 'UPC')
+
+for(i in 1:length(rd_UPC)){
+temp[i,2:ncol(temp)] = temp1[temp1$UPC %in% temp$UPC[i],3:ncol(temp1)]
+}
+
+
+
+Z = as.matrix(temp[,2:ncol(temp)])
+Delta=matrix(0,nrow = length(cat), ncol = length(explanatory_variable)+1)    
+
+
+
+R=50000
+
+regdata=NULL
+ns = length(rd_UPC)
+
+
+for (i in 1:ns) {
+  temp = rd_train %>% filter(UPC==rd_UPC[i])
+  
+  nobs = nrow(temp)
+  iota = c(rep(1,nobs))
+  X = as.matrix(cbind(iota,temp[,explanatory_variable]))
+  y = temp[,response_variable]
+  regdata[[i]]=list(y=y,X=X)
+  }
+
+Data1=list(regdata=regdata,Z=Z)
+Mcmc1=list(R=R,keep=50, nprint = 5000)
+
+
+bayes_cat = rhierLinearModel(Data=Data1, Mcmc=Mcmc1)    # 실제 regression
+
+
+
+
+
+
+# Bayes beta/sd 값 정리
+
+bayes_cat_coef = as.data.frame(matrix(nrow = length(rd_UPC), ncol = dim(bayes_cat$betadraw)[2]+1))
+colnames(bayes_cat_coef) = c('UPC',  '(intercept)', colnames(X[,-1]))
+bayes_cat_coef[,1] =  rd_UPC
+bayes_cat_sd = bayes_cat_coef
+
+
+for(i in 1:(ncol(bayes_cat_coef)-1)){
+  temp = bayes_cat$betadraw[,i,(dim(bayes_cat$betadraw)[3]/2+1):dim(bayes_cat$betadraw)[3]]
+  bayes_cat_coef[,i+1] = rowMeans(temp)
+  bayes_cat_sd[,i+1] = apply(temp,1,sd)
+}
+
+
+
+
+
+for(i in 1:length(rd_UPC)){
+  
+  # UPC 별 beta 값 확인
+  temp = bayes_cat_coef %>% filter(UPC==rd_UPC[i]) ; temp = temp[,-1]
+  
+  
+  # UPC 별 prediction 확인
+  temp1 = cbind(1,rd_test[rd_test$UPC %in% rd_UPC[i],explanatory_variable])
+  
+  temp1 = cbind(rd_test[rd_test$UPC %in% rd_UPC[i],1:3], as.matrix(temp1) %*% t(temp))
+  colnames(temp1)[4] = 'yhat'
+  temp1$unit = exp(temp1$unit); temp1$yhat = exp(temp1$yhat)
+  temp1 = temp1 %>% mutate(pe = abs(unit-yhat)/unit)
+  temp1 = temp1 %>% mutate(week = (as.numeric(date) %/% 7-2422))
+ 
+  
+  MAPE_bayes_cat[MAPE_bayes_cat$UPC == rd_UPC[i],]$MAPE_day = 
+    temp1 %>% mutate(pe = abs(unit-yhat)/unit) %>% summarize(median(pe)) %>% unlist
+    
+  MAPE_bayes_cat[MAPE_bayes_cat$UPC == rd_UPC[i],]$MAPE_wk = 
+    temp1 %>% group_by(week) %>% summarize(unit = sum(unit), yhat = sum(yhat), wk_pe = abs(unit-yhat)/unit) %>% summarize(median(wk_pe)) %>% unlist
+  
+  if(i%%100==0){print(i)}
+}
+
+MAPE_bayes_cat$MAPE_day = as.numeric(MAPE_bayes_cat$MAPE_day); MAPE_bayes_cat$MAPE_wk = as.numeric(MAPE_bayes_cat$MAPE_wk)
+MAPE_bayes_cat[1,2:3] = apply(MAPE_bayes_cat[-1,2:3],2,median)
+MAPE[MAPE$models=='bayes_cat',2:3] = MAPE_bayes_cat[1,2:3] 
+
+
+
+rm(bayes_cat)
+```
+
+
+****************************************************
+6번 모델 - Bayesian shrinkage 모델 with brand_cat observed error term 
+Y_it = X_it %*% B_i + e_i
+B_i = Z %*% Δ[,i] + V_i
+Z ~ brand + cat
+
+
+```{r}
+
+
+temp = as.data.frame(matrix(data = NA,ncol = 1+length(brand) + length(cat), nrow = length(rd_UPC)))
+temp[,1] = rd_UPC ; temp[,2]=1
+colnames(temp) = c('UPC', colnames(rd[,c(brand, cat)]))
+
+temp1 = merge(temp[,1:2], rd[,c(1, brand, cat)]%>%distinct(), by = 'UPC')
+
+for(i in 1:length(rd_UPC)){
+temp[i,2:ncol(temp)] = temp1[temp1$UPC %in% temp$UPC[i],3:ncol(temp1)]
+}
+
+
+
+Z = as.matrix(temp[,2:ncol(temp)])
+Delta=matrix(0,nrow = length(brand) +length(cat), ncol = length(explanatory_variable)+1)    
+
+
+R=50000
+
+regdata=NULL
+ns = length(rd_UPC)
+
+
+for (i in 1:ns) {
+  temp = rd_train %>% filter(UPC==rd_UPC[i])
+  
+  nobs = nrow(temp)
+  iota = c(rep(1,nobs))
+  X = as.matrix(cbind(iota,temp[,explanatory_variable]))
+  y = temp[,response_variable]
+  regdata[[i]]=list(y=y,X=X)
+  }
+
+Data1=list(regdata=regdata,Z=Z)
+Mcmc1=list(R=R,keep=50, nprint = 5000)
+
+
+bayes_bc = rhierLinearModel(Data=Data1, Mcmc=Mcmc1)    # 실제 regression
+
+
+
+
+
+
+# Bayes beta/sd 값 정리
+
+bayes_bc_coef = as.data.frame(matrix(nrow = length(rd_UPC), ncol = dim(bayes_bc$betadraw)[2]+1))
+colnames(bayes_bc_coef) = c('UPC',  '(intercept)', colnames(X[,-1]))
+bayes_bc_coef[,1] =  rd_UPC
+bayes_bc_sd = bayes_bc_coef
+
+
+for(i in 1:(ncol(bayes_bc_coef)-1)){
+  temp = bayes_bc$betadraw[,i,(dim(bayes_bc$betadraw)[3]/2+1):dim(bayes_bc$betadraw)[3]]
+  bayes_bc_coef[,i+1] = rowMeans(temp)
+  bayes_bc_sd[,i+1] = apply(temp,1,sd)
+}
+
+
+
+
+
+for(i in 1:length(rd_UPC)){
+  
+  # UPC 별 beta 값 확인
+  temp = bayes_bc_coef %>% filter(UPC==rd_UPC[i]) ; temp = temp[,-1]
+  
+  
+  # UPC 별 prediction 확인
+  temp1 = cbind(1,rd_test[rd_test$UPC %in% rd_UPC[i],explanatory_variable])
+  
+  temp1 = cbind(rd_test[rd_test$UPC %in% rd_UPC[i],1:3], as.matrix(temp1) %*% t(temp))
+  colnames(temp1)[4] = 'yhat'
+  temp1$unit = exp(temp1$unit); temp1$yhat = exp(temp1$yhat)
+  temp1 = temp1 %>% mutate(pe = abs(unit-yhat)/unit)
+  temp1 = temp1 %>% mutate(week = (as.numeric(date) %/% 7-2422))
+ 
+  
+  MAPE_bayes_bc[MAPE_bayes_bc$UPC == rd_UPC[i],]$MAPE_day = 
+    temp1 %>% mutate(pe = abs(unit-yhat)/unit) %>% summarize(median(pe)) %>% unlist
+    
+  MAPE_bayes_bc[MAPE_bayes_bc$UPC == rd_UPC[i],]$MAPE_wk = 
+    temp1 %>% group_by(week) %>% summarize(unit = sum(unit), yhat = sum(yhat), wk_pe = abs(unit-yhat)/unit) %>% summarize(median(wk_pe)) %>% unlist
+  
+  if(i%%100==0){print(i)}
+}
+
+MAPE_bayes_bc$MAPE_day = as.numeric(MAPE_bayes_bc$MAPE_day); MAPE_bayes_bc$MAPE_wk = as.numeric(MAPE_bayes_bc$MAPE_wk)
+MAPE_bayes_bc[1,2:3] = apply(MAPE_bayes_bc[-1,2:3],2,median)
+MAPE[MAPE$models=='bayes_bc',2:3] = MAPE_bayes_bc[1,2:3] 
+
+
+
+rm(bayes_bc)
+```
+
+
+
+****************************************************
+9번 모델 - ols 모델 (P.E. 24.7)
+
+
+```{r}
+
+MAPE_ols = MAPE_bayes
+MAPE_ols[,2:3] = NA
+
+
+for(i in 1:length(rd_UPC)){
+  
+  # UPC 별 linear regression
+  temp = lm(unit~., data = rd_train[rd_train$UPC %in% rd_UPC[i],c(response_variable, explanatory_variable)])
+  
+  # UPC 별 prediction 확인
+  temp1 = rd_test %>% filter(UPC %in% rd_UPC[i]) %>% select(UPC, date, unit)
+  temp1 = temp1 %>% mutate(yhat = predict(temp, newdata = rd_test[rd_test$UPC %in% rd_UPC[i],explanatory_variable]))
+  temp1$unit = exp(temp1$unit); temp1$yhat = exp(temp1$yhat)
+  temp1 = temp1 %>% mutate(pe = abs(unit-yhat)/unit)
+  temp1 = temp1 %>% mutate(week = (as.numeric(date) %/% 7-2422))
+  MAPE_ols[MAPE_ols$UPC == rd_UPC[i],]$MAPE_day = 
+    temp1 %>% mutate(pe = abs(unit-yhat)/unit) %>% summarize(median(pe)) %>% unlist
+  MAPE_ols[MAPE_ols$UPC == rd_UPC[i],]$MAPE_wk = 
+    temp1 %>% group_by(week) %>% summarize(unit = sum(unit), yhat = sum(yhat), wk_pe = abs(unit-yhat)/unit) %>% summarize(median(wk_pe)) %>% unlist
+    
+  
+  if(i%%100==0){print(i)}
+}
+
+MAPE_ols$MAPE_day = as.numeric(MAPE_ols$MAPE_day); MAPE_ols$MAPE_wk = as.numeric(MAPE_ols$MAPE_wk)
+MAPE_ols[1,2:3] = apply(MAPE_ols[-1,2:3],2,median)
+MAPE[MAPE$models=='ols',2:3] = MAPE_ols[1,2:3]
+
+```
+
+
+
+
+```{r}
+
+explanatory_variable3 = c(explanatory_variable,brand)
+MAPE_cat_ols  = MAPE_bayes ; MAPE_cat_ols[,2:3] = NA
+
+for(i in 1:(length(cat))){
+  
+  # cat 별 linear regression
+  temp =lm(unit~., data = rd_train[rd_train[,cat[i]]==1,c(response_variable, explanatory_variable3)])
+  
+  
+  
+  # cat 별 coefficient 확인
+  #lm_cat_coef[lm_cat_coef$cat == ccolnames(rd[,cat])[i],2:ncol(lm_cat_coef)] = temp$coefficients
+  
+  # cat 별 prediction 확인
+  temp1 = rd_test[rd_test[,cat[i]]==1,] %>% filter(UPC %in% rd_UPC) %>% select(UPC, date, unit)
+  temp1 = temp1 %>% mutate(yhat = predict(temp, newdata = rd_test[rd_test[,cat[i]]==1 & rd_test$UPC %in% rd_UPC,explanatory_variable3]))
+
+                           
+  temp1$unit = exp(temp1$unit); temp1$yhat = exp(temp1$yhat)
+  temp1 = temp1 %>% mutate(pe = abs(unit-yhat)/unit)
+  temp1 = temp1 %>% mutate(week = (as.numeric(date) %/% 7-2422))
+  temp_UPC = temp1 %>% distinct(UPC) %>% unlist
+  if(length(temp_UPC)>0){
+  
+  for (j in 1:length(temp_UPC)){
+    MAPE_cat_ols[MAPE_cat_ols$UPC == temp_UPC[j],]$MAPE_day = temp1 %>% filter(UPC == temp_UPC[j]) %>% summarize(median(pe)) %>% unlist
+    MAPE_cat_ols[MAPE_cat_ols$UPC == temp_UPC[j],]$MAPE_wk = temp1 %>% filter(UPC == temp_UPC[j]) %>% group_by(week) %>% summarize(unit = sum(unit), yhat = sum(yhat), wk_pe = abs(unit-yhat)/unit) %>% summarize(median(wk_pe)) %>% unlist
+  
+  }
+  }
+  
+  
+  
+  if(i%%10==0){print(i)}
+}
+
+MAPE_cat_ols[1,2:3] = apply(MAPE_cat_ols[-1,2:3],2,median)
+MAPE = rbind(MAPE, unlist(c('cat_ols', MAPE_cat_ols[1,2:3])))
+
+```
+
+```{r}
+
+explanatory_variable4 = c(explanatory_variable,cat)
+MAPE_brand_ols  = MAPE_bayes ; MAPE_brand_ols[,2:3] = NA
+
+
+
+for(i in 1:(length(brand)+1)){
+  
+  # brand 별 linear regression
+  {
+    if(i==1){
+      temp = lm(unit~., data = rd_train[apply(rd_train[,brand], 1, sum)==0,c(response_variable, explanatory_variable4)])
+      }
+    else{
+      temp =lm(unit~., data = rd_train[rd_train[,i+brand[1]-2]==1,c(response_variable, explanatory_variable4)])
+      }
+  }
+  
+  
+  {
+    if(i==1){
+      temp1 = rd_test[apply(rd_test[,brand], 1, sum)==0,] %>% filter(UPC %in% rd_UPC) %>% select(UPC, date, unit)
+      temp1 = temp1 %>% mutate(yhat = predict(temp, newdata = rd_test[apply(rd_test[,brand], 1, sum)==0 & rd_test$UPC %in% rd_UPC,explanatory_variable4]))
+    }
+    else{
+      temp1 = rd_test[rd_test[,i+brand[1]-2]==1,] %>% filter(UPC %in% rd_UPC) %>% select(UPC, date, unit)
+      temp1 = temp1 %>% mutate(yhat = predict(temp, newdata = rd_test[rd_test[,i+brand[1]-2]==1 & rd_test$UPC %in% rd_UPC,explanatory_variable4]))
+    }
+  }
+                           
+  
+  
+  # brand 별 coefficient 확인
+  #lm_brand_coef[lm_brand_coef$brand == ccolnames(rd[,brand])[i],2:ncol(lm_brand_coef)] = temp$coefficients
+  
+  # brand 별 prediction 확인
+  
+                           
+  temp1$unit = exp(temp1$unit); temp1$yhat = exp(temp1$yhat)
+  temp1 = temp1 %>% mutate(pe = abs(unit-yhat)/unit)
+  temp1 = temp1 %>% mutate(week = (as.numeric(date) %/% 7-2422))
+  temp_UPC = temp1 %>% distinct(UPC) %>% unlist
+  if(length(temp_UPC)>0){
+  
+  for (j in 1:length(temp_UPC)){
+    MAPE_brand_ols[MAPE_brand_ols$UPC == temp_UPC[j],]$MAPE_day = temp1 %>% filter(UPC == temp_UPC[j]) %>% summarize(median(pe)) %>% unlist
+    MAPE_brand_ols[MAPE_brand_ols$UPC == temp_UPC[j],]$MAPE_wk = temp1 %>% filter(UPC == temp_UPC[j]) %>% group_by(week) %>% summarize(unit = sum(unit), yhat = sum(yhat), wk_pe = abs(unit-yhat)/unit) %>% summarize(median(wk_pe)) %>% unlist
+  
+  }
+  }
+  
+  
+  
+  if(i%%10==0){print(i)}
+}
+
+MAPE_brand_ols[1,2:3] = apply(MAPE_brand_ols[-1,2:3],2,median)
+MAPE = rbind(MAPE, unlist(c('brand_ols', MAPE_brand_ols[1,2:3])))
+
+```
+
+
+```{r}
+# bayesian brand pooled
+
+MAPE_bayes_brand_pooled = MAPE_bayes_bc ; MAPE_bayes_brand_pooled[,2:3] = NA
+
+R=50000
+
+regdata=NULL
+ns = length(brand)+1
+
+
+for (i in 1:ns) {
+  {
+    if(i==1){
+      temp = rd_train[apply(rd_train[,brand], 1, sum)==0,]
+      }
+    else{
+      temp =rd_train[rd_train[,i+brand[1]-2]==1,]
+      }
+  }
+  
+  
+  nobs = nrow(temp)
+  iota = c(rep(1,nobs))
+  X = as.matrix(cbind(iota,temp[,explanatory_variable4]))
+  y = temp[,response_variable]
+  regdata[[i]]=list(y=y,X=X)
+  }
+
+Data1=list(regdata=regdata)
+Mcmc1=list(R=R,keep=50, nprint = 5000)
+
+
+bayes_brand_pooled = rhierLinearModel(Data=Data1, Mcmc=Mcmc1)    # 실제 regression
+
+
+
+
+
+
+# Bayes beta/sd 값 정리
+
+bayes_brand_pooled_coef = as.data.frame(matrix(nrow = length(brand)+1, ncol = dim(bayes_brand_pooled$betadraw)[2]+1))
+colnames(bayes_brand_pooled_coef) = c('brand',  '(intercept)', colnames(X[,-1]))
+bayes_brand_pooled_coef[,1] =  c('TFS', colnames(rd[,brand]))
+bayes_brand_pooled_sd = bayes_brand_pooled_coef
+
+
+for(i in 1:(ncol(bayes_brand_pooled_coef)-1)){
+  temp = bayes_brand_pooled$betadraw[,i,(dim(bayes_brand_pooled$betadraw)[3]/2+1):dim(bayes_brand_pooled$betadraw)[3]]
+  bayes_brand_pooled_coef[,i+1] = rowMeans(temp)
+  bayes_brand_pooled_sd[,i+1] = apply(temp,1,sd)
+  dim(temp)
+  dim(bayes_brand_pooled_coef)
+}
+
+
+
+
+for(i in 1:ns){
+  
+  # UPC 별 beta 값 확인
+  temp = bayes_brand_pooled_coef[i,-1]
+  
+  
+  # UPC 별 prediction 확인
+  
+  {
+    if(i==1){
+      temp1 = cbind(1, rd_test[apply(rd_test[,brand], 1, sum)==0,explanatory_variable4])
+      temp1 = cbind(rd_test[apply(rd_test[,brand], 1, sum)==0,1:3], as.matrix(temp1) %*% t(temp))
+      }
+    else{
+      temp1 = cbind(1, rd_test[rd_test[,i+brand[1]-2]==1,explanatory_variable4])
+      temp1 = cbind(rd_test[rd_test[,i+brand[1]-2]==1,1:3], as.matrix(temp1) %*% t(temp))
+      }
+  }
+  
+  
+  
+  
+  colnames(temp1)[4] = 'yhat'
+  temp1$unit = exp(temp1$unit); temp1$yhat = exp(temp1$yhat)
+  temp1 = temp1 %>% mutate(pe = abs(unit-yhat)/unit)
+  temp1 = temp1 %>% mutate(week = (as.numeric(date) %/% 7-2422))
+ 
+  
+  
+  temp2 = merge(MAPE_bayes_brand_pooled, 
+                temp1 %>% mutate(pe = abs(unit-yhat)/unit) %>% group_by(UPC) %>% summarize(pe = median(pe)),
+                by = 'UPC', all.x = T)
+  temp2$MAPE_day[!is.na(temp2$pe)] = temp2$pe[!is.na(temp2$pe)]
+  temp2 = merge(temp2[,-4],
+                temp1 %>% group_by(UPC, week) %>% summarize(unit = sum(unit), yhat = sum(yhat), wk_pe = abs(unit-yhat)/unit) %>% summarize(wk_pe = median(wk_pe)),
+                by = 'UPC', all.x = T)
+  temp2$MAPE_wk[!is.na(temp2$wk_pe)] = temp2$wk_pe[!is.na(temp2$wk_pe)]
+  MAPE_bayes_brand_pooled = temp2[,-4]
+  
+  if(i%%10==0){print(i)}
+}
+
+MAPE_bayes_brand_pooled$MAPE_day = as.numeric(MAPE_bayes_brand_pooled$MAPE_day); MAPE_bayes_brand_pooled$MAPE_wk = as.numeric(MAPE_bayes_brand_pooled$MAPE_wk)
+MAPE_bayes_brand_pooled[1,2:3] = apply(MAPE_bayes_brand_pooled[-1,2:3],2,median, na.rm = T)
+
+MAPE = rbind(MAPE, unlist(c('bayes_brand_pooled', MAPE_bayes_brand_pooled[1,2:3])))
+
+
+
+rm(bayes_brand_pooled)
+```
+
+```{r}
+# bayesian category pooled
+
+MAPE_bayes_cat_pooled = MAPE_bayes_bc ; MAPE_bayes_cat_pooled[,2:3] = NA
+
+R=50000
+
+regdata=NULL
+ns = length(cat)
+
+
+for (i in 1:ns) {
+
+  temp =rd_train[rd_train[,cat[i]]==1,]
+
+  
+  
+  nobs = nrow(temp)
+  iota = c(rep(1,nobs))
+  X = as.matrix(cbind(iota,temp[,explanatory_variable3]))
+  y = temp[,response_variable]
+  regdata[[i]]=list(y=y,X=X)
+  }
+
+Data1=list(regdata=regdata)
+Mcmc1=list(R=R,keep=50, nprint = 1000)
+
+
+bayes_cat_pooled = rhierLinearModel(Data=Data1, Mcmc=Mcmc1)    # 실제 regression
+
+
+
+
+
+
+# Bayes beta/sd 값 정리
+
+bayes_cat_pooled_coef = as.data.frame(matrix(nrow = length(cat), ncol = dim(bayes_cat_pooled$betadraw)[2]+1))
+colnames(bayes_cat_pooled_coef) = c('Category',  '(intercept)', colnames(X[,-1]))
+bayes_cat_pooled_coef[,1] =  colnames(rd[,cat])
+bayes_cat_pooled_sd = bayes_cat_pooled_coef
+
+
+for(i in 1:(ncol(bayes_cat_pooled_coef)-1)){
+  temp = bayes_cat_pooled$betadraw[,i,(dim(bayes_cat_pooled$betadraw)[3]/2+1):dim(bayes_cat_pooled$betadraw)[3]]
+  bayes_cat_pooled_coef[,i+1] = rowMeans(temp)
+  bayes_cat_pooled_sd[,i+1] = apply(temp,1,sd)
+}
+
+
+
+
+
+for(i in 1:length(cat)){
+  
+  # UPC 별 beta 값 확인
+  temp = bayes_cat_pooled_coef[i,-1]
+  
+  
+  # UPC 별 prediction 확인
+  temp1 = cbind(1, rd_test[rd_test[,cat[i]]==1,explanatory_variable3])
+  
+  temp1 = cbind(rd_test[rd_test[,cat[i]]==1,1:3], as.matrix(temp1) %*% t(temp))
+  colnames(temp1)[4] = 'yhat'
+  temp1$unit = exp(temp1$unit); temp1$yhat = exp(temp1$yhat)
+  temp1 = temp1 %>% mutate(pe = abs(unit-yhat)/unit)
+  temp1 = temp1 %>% mutate(week = (as.numeric(date) %/% 7-2422))
+ 
+  
+  
+  temp2 = merge(MAPE_bayes_cat_pooled, 
+                temp1 %>% mutate(pe = abs(unit-yhat)/unit) %>% group_by(UPC) %>% summarize(pe = median(pe)),
+                by = 'UPC', all.x = T)
+  temp2$MAPE_day[!is.na(temp2$pe)] = temp2$pe[!is.na(temp2$pe)]
+  temp2 = merge(temp2[,-4],
+                temp1 %>% group_by(UPC, week) %>% summarize(unit = sum(unit), yhat = sum(yhat), wk_pe = abs(unit-yhat)/unit) %>% summarize(wk_pe = median(wk_pe)),
+                by = 'UPC', all.x = T)
+  temp2$MAPE_wk[!is.na(temp2$wk_pe)] = temp2$wk_pe[!is.na(temp2$wk_pe)]
+  MAPE_bayes_cat_pooled = temp2[,-4]
+  
+  if(i%%10==0){print(i)}
+}
+
+MAPE_bayes_cat_pooled$MAPE_day = as.numeric(MAPE_bayes_cat_pooled$MAPE_day); MAPE_bayes_cat_pooled$MAPE_wk = as.numeric(MAPE_bayes_cat_pooled$MAPE_wk)
+MAPE_bayes_cat_pooled[1,2:3] = apply(MAPE_bayes_cat_pooled[-1,2:3],2,median, na.rm=T)
+MAPE = rbind(MAPE, unlist(c('bayes_cat_pooled', MAPE_bayes_cat_pooled[1,2:3])))
+
+
+
+rm(bayes_cat_pooled)
+```
+
+
+모델 별 percentage error 정리 (by UPC)
+
+```{r}
+### 전체 UPC 정리
+
+model_outputs = c(model_outputs, 'cat_ols', 'brand_ols', 'bayes_brand_pooled', 'bayes_cat_pooled', 'boosting')
+
+
+
+
+MAPE_day = as.data.frame(matrix(NA, ncol = 1, nrow = length(rd_UPC)))
+MAPE_day[,1] = rd_UPC
+colnames(MAPE_day)[1] = 'UPC'
+MAPE_wk = MAPE_day
+
+
+
+
+for ( i in 1:length(model_outputs)){
+      MAPE_day = merge(MAPE_day, get(paste('MAPE_', model_outputs[i], sep=''))[-1,1:2], by = 'UPC', all.x=T)
+      MAPE_wk = merge(MAPE_wk, get(paste('MAPE_', model_outputs[i], sep=''))[-1,c(1,3)], by = 'UPC', all.x=T)
+      colnames(MAPE_day)[i+1] = colnames(MAPE_wk)[i+1] = model_outputs[i]
+      
+  
+}
+
+
+### CNS 기준 UPC 정리
+
+MAPE_day_CNS = MAPE_day %>% filter(UPC %in% test_UPC)
+MAPE_wk_CNS = MAPE_wk %>% filter(UPC %in% test_UPC)
+
+
+MAPE_CNS = MAPE
+MAPE_CNS[,2:3] = NA
+
+for ( i in 1:length(model_outputs)){
+      temp = rbind(get(paste('MAPE_', model_outputs[i], sep=''))[1:2,],
+                   get(paste('MAPE_', model_outputs[i], sep=''))[get(paste('MAPE_', model_outputs[i], sep=''))$UPC %in% test_UPC,])
+      temp[2,2:3] = apply(temp[-1,2:3],2,median) ; temp[1,2:3] = 1 - temp[2,2:3] 
+      
+      MAPE_CNS[MAPE_CNS$models==model_outputs[i],2:3] = temp[2,2:3]
+      
+}
+
+```
+
+
+
+최종 결과 비교
+
+
+```{r}
+MAPE
+```
+```{r}
+MAPE_CNS
+```
+
+```{r}
+MAPE_day ; MAPE_wk
+#MAPE_bayes_brand ; MAPE_bayes_brand_CNS.........
+```
+
+```{r warning=FALSE}
+## boosting by UPC
+
+
+MAPE_boosting = MAPE_bayes_bc ; MAPE_boosting[,2:3] = NA
+
+
+for(i in 1:length(rd_UPC)){
+  
+# UPC 별 boosting
+  temp = xgboost(data = data.matrix(rd_train[rd_train$UPC %in% rd_UPC[i],explanatory_variable]), 
+                 label = rd_train[rd_train$UPC %in% rd_UPC[i], response_variable],
+                 max.depth = 3, eta = 0.001, nround = 5000, objective = "reg:linear", verbose = 0)
+  
+  
+# UPC 별 prediction 확인
+  temp1 = rd_test %>% filter(UPC %in% rd_UPC[i]) %>% select(UPC, date, unit)
+  temp1 = temp1 %>% mutate(yhat = predict(temp, newdata = data.matrix(rd_test[rd_test$UPC %in% rd_UPC[i],explanatory_variable])))
+  temp1$unit = exp(temp1$unit); temp1$yhat = exp(temp1$yhat)
+  temp1 = temp1 %>% mutate(pe = abs(unit-yhat)/unit)
+  temp1 = temp1 %>% mutate(week = (as.numeric(date) %/% 7-2422), month = ifelse(week %in% 1:4, 1, 2))
+  
+    
+  MAPE_boosting[MAPE_boosting$UPC == rd_UPC[i],]$MAPE_day = 
+    temp1 %>% mutate(pe = abs(unit-yhat)/unit) %>% summarize(median(pe)) %>% unlist
+    
+  MAPE_boosting[MAPE_boosting$UPC == rd_UPC[i],]$MAPE_wk = 
+    temp1 %>% group_by(week) %>% summarize(unit = sum(unit), yhat = sum(yhat), wk_pe = abs(unit-yhat)/unit) %>% summarize(median(wk_pe)) %>% unlist
+  
+  
+  
+  if(i%%100==0){print(i)}
+}
+
+MAPE_boosting$MAPE_day = as.numeric(MAPE_boosting$MAPE_day); MAPE_boosting$MAPE_wk = as.numeric(MAPE_boosting$MAPE_wk)
+MAPE_boosting[1,2:3] = apply(MAPE_boosting[-1,2:3],2,median)
+MAPE = rbind(MAPE,unlist(c('boosting', MAPE_boosting[1,2:3])))
+```
+
+
+
+
+
+```{r}
+save.image('d:/cns_data/180215WS.RData')
+
+```
+
+
+```{r}
+bayes_brand_coef
+```
+
+
+```{r}
+
+pooled_ols = lm(unit~., data = rd_train[,c(explanatory_variable, response_variable)])
+coef_comparison = as.data.frame(pooled_ols$coefficients)
+single_ols = lm(unit~., data = rd_train[rd_train$UPC==32900539,c(explanatory_variable, response_variable)])
+coef_comparison = cbind(coef_comparison, single_ols$coefficients)
+
+a = bayes_brand_coef[,-37] %>% filter(UPC ==32900539)
+coef_comparison = cbind(coef_comparison,t(a[,-1]))
+
+
+colnames(coef_comparison) = c('pooled_ols', 'SKU_ols', 'bayesian_brand')
+
+
+```
+
+```{r}
+a = t(matrix(nrow = nrow(coef_comparison), ncol = 5000))
+dim(a)
+colnames(a) = rownames(coef_comparison)
+for(i in 1:ncol(a)){
+  a[,i] = rnorm(n = 5000, mean = test_32900539[1,i], sd = test_32900539[2,i])
+}
+
+
+
+bayes_test = cbind(bayes_brand_coef[,c(1,30)], bayes_brand_sd[,30])
+
+coef_comparison  = matrix(ncol = nrow(bayes_test), nrow = 5000)
+colnames(coef_comparison) = bayes_test[,1]
+for(i in 1:ncol(coef_comparison)){
+  coef_comparison[,i] = rnorm(n = 5000, mean = bayes_test[i,2], sd = bayes_test[i,3])
+}
+a = melt(coef_comparison)[,2:3]
+b = pooled_ols$coefficients[29]
+q = data.frame(matrix(nrow = length(rd_UPC), ncol = 2))
+
+for(i in 1:length(rd_UPC)){
+  # UPC 별 linear regression
+  temp = lm(unit~., data = rd_train[rd_train$UPC %in% rd_UPC[i],c(response_variable, explanatory_variable)])
+  q[i,1] = rd_UPC[i]
+  q[i,2] = temp$coefficient[29]
+  
+    
+  
+  if(i%%100==0){print(i)}
+}
+
+a = a %>% filter(Var2 %in% test_UPC) %>% mutate(grp = rep(c('TFS','Face_it','lv',3,4,5,5), each = 5000))
+q = q %>% filter(X1 %in% test_UPC)
+
+library(RColorBrewer)
+
+ggplot() + 
+  geom_boxplot(data = a, aes(x = factor(Var2), y = value, fill = factor(grp), col = 'bayesian')) +
+  geom_point(data = q, aes(x = factor(X1), y = X2, col = 'SKU_ols'), size = 3, stroke = 0, shape = 16) + 
+  geom_hline(aes(yintercept = b, col = 'pooled_ols')) + 
+  scale_fill_brewer(palette = 'Pastel2') +
+  #scale_color_brewer(palette = 'RdBu') +
+  #scale_color_manual(values = c('blue', 'red')) +
+  ylim(c(-8,8)) +
+  labs(title = 'Shrinkage effect of Bayesian Hierachical regression on 30% sale parameter', fill = 'brand_group') +
+  xlab('SKU')+
+  theme(text = element_text(size=10),
+        axis.text.x = element_text(angle=45, hjust=1))
+
+
+
+```
+
+```{r}
+rd_train[,c(1,brand)] %>% filter(UPC %in% a$Var2) %>% distinct()
+ggplot(data = coef_comparison) + 
+  
+  
+  geom_boxplot(data = melt(test_32900539), aes(x = as.character(variable), y = value, col = 'Bayesian')) +
+  geom_point(aes(x = as.character(variables), y = pooled_ols, col = 'pooled_ols')) + 
+  #geom_point(aes(x = as.character(variables), y = coef_comparison$single_ols, col = 'SKU_ols')) + 
+   guides(fill = F, size = F, linetype = F) +
+  theme(text = element_text(size=10),
+        axis.text.x = element_text(angle=45, hjust=1))
+  
+
+  
+```
+
