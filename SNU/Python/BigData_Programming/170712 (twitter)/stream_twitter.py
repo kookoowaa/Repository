@@ -10,7 +10,7 @@ access_token_secret = 'On8jdrUtGIdauYAsqDwEtOSIdKapeUM7meJ9CSPBjRAlA'
 
 #####
 
-tweet_stream = open('d:/tweet_kyochon.txt', 'a')
+tweet_stream = open('c:/tweet_kyochon.txt', 'a')
 
 class Listener(StreamListener):
 
