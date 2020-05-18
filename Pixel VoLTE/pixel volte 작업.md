@@ -10,7 +10,7 @@ Pixel 3a VoLTE(KT) 작업을 근 1년 넘게 미루어 오다 이번에 진행�
 
 첫 작업이다 보니 2~3시간 정도 소요되었던 것 같은데 후기 및 기존의 내용들을 복기하고 쉽게 풀어보자는 취지에서 이 글을 남깁니다. 참고로 제 백그라운드는 현업에서 python 활용한 데이터 분석(를 하고 싶으나 실제로는 엑셀과 지내는 시간이 훨씬 많은) 업무를 하는 기술과 비기술 중간 어디 즈음에 있다보니, 프로그래밍이 생소하신 분들께 좀더 직관적으로 설명할 수 있지 않을까 싶습니다.
 
-본문으로 들어가기 전에 본 프로세스를 정립해 주신 **누리로**님, 깃허브의 **gheron772**님께 말로 다 못할 감사를 드리며, 혹시 제가 잘못 이해/설명하고 있는 내용이 있다면 편하게 댓글 남겨주세요. 본 글의 내용이 기존 두분께서 작성하신 글을 재정리한 글인 만큼, 원작자께서 요청하신다면 즉각 폐기토록 하겠습니다.
+본문으로 들어가기 전에 본 프로세스를 정립해 주신 **누리로**님, 깃허브의 **gheron772**님께 말로 다 못할 감사를 드리며, 혹시 제가 잘못 이해/설명하고 있는 내용이 있다면 편하게 댓글 남겨주세요. 본 글의 내용이 기존 두분께서 작성하신 글을 재정리한 글인 만큼, **원작자께서 요청하신다면 가타부타 없이 즉각 폐기**토록 하겠습니다.
 
 
 
@@ -24,7 +24,7 @@ Pixel 3a VoLTE(KT) 작업을 근 1년 넘게 미루어 오다 이번에 진행�
 
 안타깝게도 KT와 U+에서는 추가 작업이 필요했습니다. 추정하기로는 통신사의 VoLTE 서버에서 모뎀의 특정 설정값을 체크하는 것으로 보이는데, 따라서 모뎀의 설정값도 수정할 필요가 있습니다. 이 때에는 정확한 표현인지는 모르겠지만 컴퓨터로 스마트폰에 연결한다기 보다는 스마트폰의 모뎀에 파티션에 연결한다는 개념으로 이해했고, 위 과정과는 조금 다르게 진행이 되겠습니다.
 
-본격적으로 진행해 보겠습니다만, 상세한 내용은 누리로님 포스팅과 병행해 주세요.
+본격적으로 진행해 보겠습니다만, 상세한 내용은 [누리로님 포스팅](https://cafe.naver.com/refurbishfactory/174289)과 병행해 주세요.
 
 
 
@@ -77,7 +77,9 @@ fastboot flashing unlock
 
 이제 부트로더가 언락되었고, 공장초기화가 되었고, 기기가 재부팅되면 다시 스마트폰을 세팅하면 됩니다.
 
-## 2. OMD 모델명 변경
+
+
+## 3. OMD 모델명 변경
 
 타이핑이 불필요한 과정입니다!
 
@@ -91,7 +93,9 @@ fastboot flashing unlock
 
 끝
 
-## 3. Magisk로 루팅
+
+
+## 4. Magisk로 루팅
 
 - 오버뷰
 
@@ -151,7 +155,9 @@ adb shell rm /sdcard/Download/boot.img /sdcard/Download/magisk_patched.img
 
 첫번째 명령어는 PC에서, 두번째는 스마트폰에서 `boot.img`와 `magisk_patched.img` 파일을 삭제하는 명령어입니다.
 
-## 4. VoLTE 모듈 설치 (모뎀 설정 수정)
+
+
+## 5. VoLTE 모듈 설치 (모뎀 설정 수정)
 
 - 오버뷰
 
@@ -171,16 +177,37 @@ adb shell rm /sdcard/Download/boot.img /sdcard/Download/magisk_patched.img
 
 이제 Magisk를 삭제하고 순정 상태로 스마트폰을 돌려 두어도 `/data/vendor/modem_fdr/fdr_check`의 설정이 바뀌기 전까진(업데이트 등으로) VoLTE를 계속 사용할 수 있습니다. 저 같은 경우는 스마트폰을 순정으로 돌려두었고 해당 과정은 '6. 순정으로 돌리기'에서 설명하겠습니다.
 
-## 5.KT/U+의 경우 VoLTE 서버에서 체크하는(추정) 설정값(`user_agent_template`) 변경
+
+
+## 6.KT/U+의 경우 VoLTE 서버에서 체크하는(추정) 설정값(`user_agent_template`) 변경
 
 - 오버뷰
 
-  > 변형된 magisk manager는 diag port를 개방시킴
+  > 통신사 별 모뎀 설정 파일을 변경하여 VoLTE 사용
+  >
+  > 변형된 magisk manager로 diag port를 개방시킴
+  >
+  > QPST 에서 기기 인식
+  >
+  > QPST로 모뎀 설정 파일 변경
+
 
 - 필요한 파일
 
   ```shell
-  - volte-kr-crosshatch-{버전}
+  - adb.exe # SDK
+  - AdbWinApi.dll # SDK
+  - AdbWinUsbApi.dll # SDK
+  - fastboot.exe # SDK
+  
+  - QPST_2.7.480 # QPST 설치 파일
+  
+  - google_devices-{기기 코드명}-{빌드 버전}.tgz # 유저디버그 벤더 tgz
+  
+  - vbmeta.img # 팩토리 이미지
+  - vendor.img # 팩토리 이미지 (순정 되돌리기)
+  
+  - user_agent_template # gheron772 Github
   ```
 
 Magisk에서 gheron772 님의 `Pixel_2_Diag_port.zip` 를 설치하는 것도 방법이지만, 단순히 아래 명령어를 실행하는 것 만으로도 diag port를 개방하도록 하니 둘중 편한 방법을 사용해도 됩니다. (저는 후자)
@@ -193,20 +220,82 @@ setenforce 0
 setprop sys.usb.configfs 1 && setprop sys.usb.config diag,serial_cdev,rmnet_gsi,adb
 ```
 
+다음으로는 QPST를 설치하겠습니다. [여기]( https://qpsttool.com/category/download)에서 QPST를 다운받을 수 있으며, Driver 폴더 안의 `Qualcomm USB Deriver V1.0.exe`를 실행하여 **QPST**와 **EFS Explorer**를 설치할 수 있습니다. 아직까지는 두 프로그램에서 Pixel 모뎀에 연결하는 것이 불가능 하며, 부트로더를 통해 내려받은 유저디버그 벤더 이미지로 부팅, **NSG**란 이름의 앱을 통해 QPST 연결이 가능합니다.
+
+유저 디버그 벤더  파일은([다운](https://developers.google.com/android/drivers)) tgz 확장자를 갖고 있는 압축파일이며, 압축을 풀면 리눅스의 sh 파일이 나옵니다. 감사하게도, 7-zip을 사용하면 sh 파일도 압축 해제가 가능하며, 쭉쭉 하위 폴더로 들어가다 보면 `vendor\google_devices\crosshatch\proprietary\vendor.img` 파일을  찾을 수 있습니다. 해당 파일은 팩토리 이미지에서 내려받은 순정 이미지와 구별하기 위해 `vendor-userdebug.img`로 저장하겠습니다. 이제 유저 디버그 벤더 이미지로 부팅해 보도록 하겠습니다.
+
+```shell
+adb reboot bootloader
+fastboot flash vbmeta vbmeta.img --disable-verity
+fastboot reboot-fastboot
+fastboot flash vendor vendor-userdebug.img
+fastboot reboot
+```
+
+위에서 Magisk로 루팅할 때와는 다르게 `fastboot flash vbmeta vbmeta.img --disable-verity`로  `dm-verity`를  해제해야 하고, 이를 위해 `vendor.img` 외 `vbmeta.img`가 필요합니다. 해제 이후엔 유저 디버그 벤더 이미지(`vendor-userdebug.img`)로 플래싱 후 다시 재부팅 해 줍니다.
+
+이제 QPST로 설치한 EFS Explorer를 사용하기 위한 마지막 한단계로 **NSG**(Network Signal Guru) 앱이 필요합니다. 해당 앱은 [링크](https://play.google.com/store/apps/details?id=com.qtrun.QuickTest)에서 설치할 수 있습니다. 위 과정을 정상적으로 실행해 왔으면 앱 실행 시 **Driver not working or unknown error**라고 나오고, EFS Explorer에서 기기 정보가 표시되는 것을 확인 할 수 있습니다.
+
+다 끝나 갑니다!
+
+EFS에서 pixel 폰에 접속하면 내컴퓨터와 비슷한 인터페이스를 만나게 되고, 사전에 내려받은  `user_agent_template` 파일을 교체해주면 됩니다. 해당 파일은 google 폴더 안에 있으니 윈도우에서 끌고 와서 교체해 주면 됩니다. 이제 EFS Explorer를 종료하고 5~10초 후 `adb reboot` 명령을 실행하면, 기기가 재부팅 되고 VoLTE가 되는 것을 확인 할 수 있습니다.
 
 
-## 6. 순정으로 돌리기
+
+## 7. 순정으로 돌리기
+
+- 오버뷰
+
+  > `vbmeta`, `vendor` 파티션 복원
+  >
+  > `boot` 파티션 복원
+
+- 필요한 파일
+
+  ```shell
+  - adb.exe # SDK
+  - AdbWinApi.dll # SDK
+  - AdbWinUsbApi.dll # SDK
+  - fastboot.exe # SDK
+  
+  - vbmeta.img # 팩토리 이미지
+  - vendor.img # 팩토리 이미지
+  ```
+
+순정으로 되돌리기 위해 먼저 벤더 이미지부터 원상 복구 시키겠습니다.
+
+```shell
+adb reboot bootloader
+fastboot flash vbmeta vbmeta.img
+fastboot reboot-fastboot
+fastboot flash vendor vendor.img
+fastboot reboot
+```
+
+위의 명령어를 실행하면 `vbmeta`와 `vendor`가 팩토리 이미지(순정)로 복원된 상태로 부팅되게 됩니다. 벤더 복원 끝!
+
+그리고 Magisk Manager 앱에 들어가서 하단의 제거 -> 완전히 제거를 클릭하면 `magisk_patched.img`로 덮어쓰였던 `boot.img`도 순정으로 복원되어 순정 상태의 (부트로더만 언락된) 픽셀폰을 사용 가능합니다. 이때 주요 설정값들은 바뀐 상태이기 때문에 순정으로 돌아가더라도 관련 설정값들을 건드리는 시스템 업데이트만 없다면 VoLTE는 유지됩니다.
 
 
+
+어휴....
+
+올라와 있는 내용만 제가 이해한 대로 정리 해 보았는데도 맥이 빠지는데,
+
+이 방대한 내용을 개발하고 하나하나 설명해 주신 누리로님 외 개발자 분들께 다시 한번 감사드리며,
+
+참조한 원작자 분들께서 혹여나 조금이라도 불편하시다면 즉각 삭제토록 하겠습니다.
+
+(제가 잘못 이해하거나 너무 단순화해서 설명하려 한 부분이 있다면 지적 부탁드립니다.)
 
 
 
 참조.
 
-https://cafe.naver.com/refurbishfactory/174289
+[공초 하나 없이 깨끗한 픽셀 3의 VoLTE 활성화 방법](https://cafe.naver.com/refurbishfactory/174289)
 
-https://cafe.naver.com/grnf/328846
+[*[픽셀 3]*순정 매지스크에 diag port 개방 기능을 포함시켜 설치하기](https://cafe.naver.com/grnf/328846)
 
-https://cafe.naver.com/grnf/328815
+[*[픽셀 3A]* 픽셀 3a volte 패치중에 문제가 발생했습니다.ㅜㅜ](https://cafe.naver.com/grnf/328815)
 
-https://github.com/gheron772/Pixel3aVoLTE
+[Pixel 3a VoLTE patch](https://github.com/gheron772/Pixel3aVoLTE)
