@@ -128,6 +128,8 @@ adb push boot.img /sdcard/Download/
 
 위의 명령어로 스마트폰의 다운로드 디렉터리에 `boot.img` 팩토리 파일을 전송합니다.
 
+팩토리 이미지는 다음 [링크](https://developers.google.com/android/images#sargo)에서 내려받을 수 있습니다
+
 전송이 끝나면 다시 스마트폰으로 넘어와서 Magisk manager를 실행합니다. 상단에 **Magisk가 설치되지 않음**이라고 쓰여 있을텐데, 우측의 '설치' 버튼을 누릅니다. 이후 '파일 선택 및 패치'를 선택하고, 컴퓨터에서 옮겨온 `boot.img` 파일을 선택합니다. 잠시 검은 화면에서 스마트폰이 열일하고, '완료!'가 뜨면 `/sdcard/Download/` 디렉터리에 `magisk_patched.img`파일이 생성됨을 알 수 있습니다.
 
 다시 컴퓨터로 이동하겠습니다.
