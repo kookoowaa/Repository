@@ -292,7 +292,7 @@ fastboot reboot
 
 
 
-참조.
+참조1.
 
 [공초 하나 없이 깨끗한 픽셀 3의 VoLTE 활성화 방법](https://cafe.naver.com/refurbishfactory/174289)
 
@@ -301,3 +301,20 @@ fastboot reboot
 [*[픽셀 3A]* 픽셀 3a volte 패치중에 문제가 발생했습니다.ㅜㅜ](https://cafe.naver.com/grnf/328815)
 
 [Pixel 3a VoLTE patch](https://github.com/gheron772/Pixel3aVoLTE)
+
+
+
+참조2. **Android 11** 이후
+
+[Android 11을 올린 Pixel 3/XL에서 VoLTE 작업하기](https://cafe.naver.com/grnf)
+
+[[강좌\]매지스크 (카나리) 설치 방법](https://cafe.naver.com/grnf/332795)
+
+> - 유저 디버그 벤더 파일을 플래싱 하는 방식은 더이상 불필요
+> - 기기에서 `parasite.sh`를 실행하여, `magisk_patched.img`로부터 `magisk_patched_diag.img`를 생성하도록 추가작업
+> - `magisk_patched_diag.img`로 플래싱하면 diag port 개방 기능이 추가
+
+
+
+
+
