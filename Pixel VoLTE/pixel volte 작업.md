@@ -306,7 +306,7 @@ fastboot reboot
 
 참조2. **Android 11** 이후
 
-[Android 11을 올린 Pixel 3/XL에서 VoLTE 작업하기](https://cafe.naver.com/grnf)
+[Android 11을 올린 Pixel 3/XL에서 VoLTE 작업하기](https://cafe.naver.com/grnf/332847)
 
 [[강좌\]매지스크 (카나리) 설치 방법](https://cafe.naver.com/grnf/332795)
 
