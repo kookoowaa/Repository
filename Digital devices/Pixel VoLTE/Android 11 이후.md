@@ -22,25 +22,25 @@
   ```shell
   adb push boot.img volte-kr-crosshatch-v1.03-20200214.zip /sdcard/Download/
   ```
+  
+- 컴퓨터 포맷 후 Google driver, Qualcomm driver 등 세팅 필수
 
-### 1. Magisk Manager 설치 (Android 11 지원 가능한 Magisk 설치를 위한 )
+### 1. Magisk 설치
 
-- Magisk 설치는 Magisk Manger 설치 > Magisk 설치 순으로 진행
+- Magisk 설치는 ~~Magisk Manger 설치 > Magisk 설치 순으로 진행~~ 다음 [github](https://github.com/topjohnwu/Magisk)에서 확인 가능
 
-- Magisk Manager 관련 업데이트 정보는 다음 [github](https://github.com/topjohnwu/Magisk)에서 확인 가능
+- 현재 (21년 3월 12일 기준) Magisk는 v22까지 지원
 
-- 현재 (20년 12월 19일 기준) Magisk Manager에서는 Magisk v20까지만 지원하며, beta에서 Magisk v21까지 지원
+- ~~Magisk v20에서는 Android 11을 지원하지 않으므로, soft brick 방지를 위해 지원 버전을 확인할 필요가 있음~~
 
-- Magisk v20에서는 Android 11을 지원하지 않으므로, soft brick 방지를 위해 지원 버전을 확인할 필요가 있음
-
-- Magisk Manager는 위의 github에서 적절한 apk를 내려 받아서 설치 (혹은 apk를 기기로 옮겨서 설치)
+- Magisk 는 위의 github에서 적절한 apk를 내려 받아서 설치 (혹은 apk를 기기로 옮겨서 설치)
 
   ```shell
-  adb install -r MagiskManager-v8.0.3.apk
+  adb install -r Magisk-v22.0.apk
   ```
 
-- Magisk Manager가 설치 되면 Magisk v21 이후 버전 설치를 위해 이미지를 생성하며, 이때 사용하는 `boot.img`는 **00. 필요한 파일**에서 전송한 파일을 선택
-  (/sdcard/Download/ 디렉토리 내에 `magisk_patched.img` 파일 생성)
+- Magisk가 설치 되면 위의 **00. 필요한 파일**에서 내려받은  `boot.img`를 사용하여 이미지 플래싱을 진행
+  (/sdcard/Download/ 디렉토리 내에 `magisk_patched_<인식자>.img` 파일 생성)
 
 ### 2. magisk_patched.img에 diag port 개방 기능을 추가
 
@@ -79,14 +79,17 @@
 
 - 재부팅 되면, Magisk Manager를 열어 정상적으로 Magisk까지 설치가 되었는지 확인함
 
+- 플래싱 이후 기기가 재부팅 완료되면 곧바로 **Magisk 앱을 실행**하고 스플래시 화면이 사라질 때까지 **7-8초 정도 대기 후 Magisk Hide (중요!!!)**
+
 ### 4. Magisk Manager에서 VoLTE 모듈 설치
 
 - 위의 설치과정이 마무리 되면, 첫번째로 할 일은 VoLTE 모듈을 설치하는 것임
 - Magisk Manager에서 모듈로 들어가 **00. 필요한 파일**에서 전송해 둔 `volte-kr-crosshatch-v1.03-20200214.zip`로 모듈을 설치
+- VoLTE 모듈 관련 내용은 다음 [깃허브 참조](https://github.com/gheron772/Pixel3aVoLTE)
 
 ### 5. Diag port 개방 후 EFS Explorer로 user_agent_template 교체
 
-- Diag port는 su 권한으로 android 기기에 접근하여 개방할 수 있으므로 다음 명령을 수행:
+- Diagport는 su 권한으로 android 기기에 접근하여 개방할 수 있으므로 다음 명령을 수행:
 
   ```shell
   adb shell
@@ -123,6 +126,8 @@ ___
 [[강좌\]매지스크 (카나리) 설치 방법](https://cafe.naver.com/grnf/332795)
 
 [순정 매지스크에 diag port 개방 기능을 포함시켜 설치하기](https://cafe.naver.com/grnf/328846)
+
+https://github.com/gheron772/Pixel3aVoLTE
 
 
 
