@@ -14,7 +14,6 @@ access_token_secret = 'access_token_secret'
 tweet_stream = open('snack.txt', 'a')
 
 class Listener(StreamListener):
-
     def on_data(self, data):
         while(True):
             try:
