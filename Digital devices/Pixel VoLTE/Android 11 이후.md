@@ -47,6 +47,7 @@
 - Magisk Manager를 통해 생성된 부팅 이미지에 diag port 개방 기능을 추가해야, KT/LGT에서 VoLTE 사용이 가능
 
 - `parasite.sh`는 해당 작업을 진행하는 셸 스크립트 파일이며, 이를 통해 손쉽게 개방 기능을 추가한 이미지 작업 가능
+  네이버 카페의 누리로 님께서 `parasite.sh`를 java 기반으로 [수정](https://cafe.naver.com/grnf])였으나 실제 파일 구동 환경에서 달라진 점은 없음
 
 - 로컬 폴더에서 아래 명령어를 실행:
 
@@ -61,7 +62,7 @@
   adb shell /data/local/tmp/parasite.sh
   
   #파일 가져오기
-  adb pull -a /sdcard/Download/magisk_patched.img & adb pull -a /sdcard/Download/magisk_patched_diag.img
+  adb pull -a /sdcard/Download/magisk_patched_diag.img
   ```
 
 ### 3. Diag port 개방 기능을 추가한 이미지로 boot 파티션 플래싱 (Magisk 설치)
