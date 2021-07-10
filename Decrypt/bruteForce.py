@@ -1,6 +1,5 @@
 import itertools
 import msoffcrypto
-
 import string
 
 
@@ -8,9 +7,6 @@ import string
 def main():  # main function to select function
     file_docx = str(input("Which DOCX/XLSX-File?\n"))
     decrypt_docx(file_docx)
-
-
-
 
 def decrypt_docx(file_docx):
     chars = string.ascii_letters + string.digits
