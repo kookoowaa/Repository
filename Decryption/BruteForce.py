@@ -42,7 +42,5 @@ def decrypt_docx(file_docx):
 
                 continue  # otherwise continue with next password
 
-
-
 if __name__ == "__main__":  # declare function main() as first executed function
     main()
