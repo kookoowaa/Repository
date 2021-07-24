@@ -3,7 +3,6 @@ import msoffcrypto
 import string
 
 
-
 def main():  # main function to select function
     file_docx = str(input("Which DOCX/XLSX-File?\n"))
     decrypt_docx(file_docx)
