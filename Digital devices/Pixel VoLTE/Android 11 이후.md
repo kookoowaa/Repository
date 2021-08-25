@@ -25,6 +25,8 @@
   
 - 컴퓨터 포맷 후 Google driver, Qualcomm driver 등 세팅 필수
 
+- 통신사 변경 시 EFS Manager를 통해 내부 파일 업데이트 필요
+
 ### 1. Magisk 설치
 
 - Magisk 설치는 ~~Magisk Manger 설치 > Magisk 설치 순으로 진행~~ 다음 [github](https://github.com/topjohnwu/Magisk)에서 확인 가능
@@ -36,7 +38,7 @@
 - Magisk 는 위의 github에서 적절한 apk를 내려 받아서 설치 (혹은 apk를 기기로 옮겨서 설치)
 
   ```shell
-  adb install -r Magisk-v22.0.apk
+  adb install -r Magisk-v23.0.apk
   ```
 
 - Magisk가 설치 되면 위의 **00. 필요한 파일**에서 내려받은  `boot.img`를 사용하여 이미지 플래싱을 진행
@@ -75,7 +77,7 @@
   fastboot reboot
   
   ## 혹은 아래 명령어로 한번에 실행
-  #adb reboot bootloader && fastboot flash boot magisk_patched_diag.img && fastboot reboot
+  adb reboot bootloader && fastboot flash boot magisk_patched_diag.img && fastboot reboot
   ```
 
 - 재부팅 되면, Magisk Manager를 열어 정상적으로 Magisk까지 설치가 되었는지 확인함
@@ -87,6 +89,7 @@
 - 위의 설치과정이 마무리 되면, 첫번째로 할 일은 VoLTE 모듈을 설치하는 것임
 - Magisk Manager에서 모듈로 들어가 **00. 필요한 파일**에서 전송해 둔 `volte-kr-crosshatch-v1.03-20200214.zip`로 모듈을 설치
 - VoLTE 모듈 관련 내용은 다음 [깃허브 참조](https://github.com/gheron772/Pixel3aVoLTE)
+- SKT 사용자는 현 시점에서 완료
 
 ### 5. Diag port 개방 후 EFS Explorer로 user_agent_template 교체
 
@@ -97,6 +100,10 @@
   su
   setenforce 0
   setprop sys.usb.configfs 1 && setprop sys.usb.config diag,serial_cdev,rmnet_gsi,adb
+  
+  ## 또는 아래 복붙
+  adb shell
+  su -c "setenforce 0; setprop sys.usb.configfs 1 && setprop sys.usb.config diag,serial_cdev,rmnet_gsi,adb"
   ```
 
 - 위의 명령을 실행했을 때 adb가 종료되어 windows의 명령 프롬프트가 나오면 diag port가 개방된 것으로 볼 수 있음 (기기를 재부팅하면 diag mode에서 빠져나옴)
@@ -104,6 +111,8 @@
 - Diag port가 개방되면 QPST에서 설치한 **EFS Explorer**로 모뎀 설정을 수정할 수 있음
 
 - EFS Explorer 에서 `/google/uger_agent_template`을 **00. 필요한 파일**에 준비되어 있는 파일로 대체
+
+- 재부팅
 
 ___
 
