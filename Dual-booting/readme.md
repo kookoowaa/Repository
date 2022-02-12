@@ -69,3 +69,6 @@ http://sun30812.blog.me/221431933809 - 세팅가이드 (KDE)
  https://palpit.tistory.com/765  - 듀얼부팅
 
  http://blog.naver.com/PostView.nhn?blogId=angelkim88&logNo=221702038231  - 듀얼부팅
+
+
+## 개인적으로 윈도우즈의 wsl (windows subsystem for Linux) 사용이 더 실용적
