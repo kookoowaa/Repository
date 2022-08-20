@@ -31,14 +31,14 @@
 
 - Magisk 설치는 ~~Magisk Manger 설치 > Magisk 설치 순으로 진행~~ 다음 [github](https://github.com/topjohnwu/Magisk)에서 확인 가능
 
-- 현재 (21년 3월 12일 기준) Magisk는 v22까지 지원
+- 현재 (22년 8월 21일 기준) Magisk는 v25까지 지원
 
 - ~~Magisk v20에서는 Android 11을 지원하지 않으므로, soft brick 방지를 위해 지원 버전을 확인할 필요가 있음~~
 
 - Magisk 는 위의 github에서 적절한 apk를 내려 받아서 설치 (혹은 apk를 기기로 옮겨서 설치)
 
   ```shell
-  adb install -r Magisk-v23.0.apk
+  adb install -r Magisk-v25.2.apk
   ```
 
 - Magisk가 설치 되면 위의 **00. 필요한 파일**에서 내려받은  `boot.img`를 사용하여 이미지 플래싱을 진행
