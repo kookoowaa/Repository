@@ -4,6 +4,8 @@
 
 - Obsidian
 
+- ~~Notion~~
+
 - <s>Joplin</s>
 
 - <s>vsCode</s>
